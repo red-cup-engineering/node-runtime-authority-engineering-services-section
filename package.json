@@ -3,5 +3,9 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Groups Node runtime and package-authority tooling.",
-  "license": "UNLICENSED"
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/red-cup-engineering/node-runtime-authority-services-section.git"
+  }
 }
