@@ -1,0 +1,8 @@
+[submodule "services/javascript-engineering-services-section/services/javascript-node-services-section/services/node-runtime-authority-services-section/services/node-runtime-release-promotion-service"]
+	path = services/node-runtime-release-promotion-service
+	url = https://github.com/red-cup-engineering/node-runtime-release-promotion-service.git
+	branch = main
+[submodule "node-package-authority-assay-service"]
+	path = services/node-package-authority-assay-service
+	url = https://github.com/red-cup-engineering/node-package-authority-assay-service.git
+	branch = main
