@@ -1,5 +1,5 @@
 {
-  "name": "@red-cup-engineering/node-runtime-authority-engineering-services-section",
+  "name": "@red-cup-engineering/node-runtime-authority-services-section",
   "version": "0.1.0",
   "type": "module",
   "description": "Groups Node runtime and package-authority tooling.",
