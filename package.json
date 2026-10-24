@@ -1,12 +1,12 @@
 {
-  "name": "@red-cup-engineering/node-runtime-authority-services-section",
+  "name": "@red-cup-engineering/node-runtime-authority-engineering-services-section",
   "version": "0.1.0",
   "type": "module",
   "description": "Groups Node runtime and package-authority tooling.",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/red-cup-engineering/node-runtime-authority-services-section.git"
+    "url": "git+https://github.com/red-cup-engineering/node-runtime-authority-engineering-services-section.git"
   },
   "funding": {
     "type": "individual",
