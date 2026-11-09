@@ -443,6 +443,7 @@ test("a second commit with the same install key carries node_modules alongside t
     await writeFile(pnpm, '#!/bin/sh\ncase "$1" in --version) echo 9.0.0;; install) mkdir -p node_modules/.pnpm/dep && printf installed > node_modules/.pnpm/dep/witness;; esac\n');
     await chmod(pnpm, 0o755);
     await writeFile(join(work.repository, "package.json"), '{"name":"root"}\n');
+    await writeFile(join(work.repository, "pnpm-workspace.yaml"), "packages: ['.']\n");
     await git(work.repository, "add", ".");
     await git(work.repository, "commit", "--quiet", "-m", "package");
     const steps = [];
