@@ -5,7 +5,7 @@ import { spawn, spawnSync, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { dirname } from "node:path";
-import { gitHistoryPlan, readBatchBlobs } from "@red-cup-engineering/git-services-section/git-command-codec";
+import { gitHistoryPlan, readBatchBlobs } from "@red-cup-engineering/git-source-reading-service/git-command-codec";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { receiveSelectedSources, selectDeclaredWorkspaceClosure, readWorkspaceSelectionLock, verifyWorkspaceSelection, exactImporterFilterArgs } from "../src/install-workspace-selection.mjs";
 const producerFile=fileURLToPath(import.meta.url),producerRoot=execFileSync('git',['-C',dirname(producerFile),'rev-parse','--show-toplevel'],{encoding:'utf8'}).trim();

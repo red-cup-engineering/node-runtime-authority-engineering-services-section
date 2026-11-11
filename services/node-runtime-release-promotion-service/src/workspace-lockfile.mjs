@@ -13,7 +13,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import micromatch from "micromatch";
 import { parse as parseYaml } from "yaml";
-import { takeBatchRecord } from "@red-cup-engineering/git-services-section/git-command-codec";
+import { takeBatchRecord } from "@red-cup-engineering/git-source-reading-service/git-command-codec";
 import { accessSync, closeSync, constants, existsSync, fsyncSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { receivingProcessGroup } from "./node-test-process-group.mjs";
 import { tmpdir } from "node:os";
