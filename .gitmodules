@@ -2,7 +2,3 @@
 	path = services/node-runtime-release-promotion-service
 	url = https://github.com/red-cup-engineering/node-runtime-release-promotion-service.git
 	branch = main
-[submodule "services/node-package-authority-assay-service"]
-	path = services/node-package-authority-assay-service
-	url = https://github.com/red-cup-engineering/node-package-authority-assay-service.git
-	branch = main

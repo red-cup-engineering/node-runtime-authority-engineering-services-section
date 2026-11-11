@@ -1,0 +1,29 @@
+{
+  "name": "@red-cup-engineering/node-package-authority-assay-service",
+  "version": "0.1.1",
+  "type": "module",
+  "description": "Observe package-manager authority and conflicting installation signals without invoking a package manager.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/red-cup-engineering/node-runtime-authority-engineering-services-section.git",
+    "directory": "services/node-package-authority-assay-service"
+  },
+  "exports": {
+    ".": "./src/assay-package-authority.mjs"
+  },
+  "bin": {
+    "assay-node-package-authority": "./scripts/assay-node-package-authority.mjs"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "test:consumer": "node --test examples/quickstart.test.mjs"
+  },
+  "engines": {
+    "node": ">=22.18"
+  },
+  "license": "MIT",
+  "funding": {
+    "type": "individual",
+    "url": "https://github.com/561-group/.github/blob/main/TIPS.md"
+  }
+}
