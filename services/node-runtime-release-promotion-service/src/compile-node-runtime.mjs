@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { build } from "esbuild";
 import { declaredNodeRuntimeEntries } from "./source-entrances.mjs";
-import { parseJavaScript } from "@red-cup-engineering/javascript-node-services-section/javascript-parser";
+import { parseJavaScript } from "@red-cup-engineering/javascript-parser-service";
 import { javascriptInstalledResolver } from "@red-cup-engineering/javascript-node-services-section/module-closure";
 import {comparePackedManifest,readPackedWorkspacePackages} from "./packed-workspace-packages.mjs";
 import { readNodeWorkspace } from "./read-workspace-source.mjs";
