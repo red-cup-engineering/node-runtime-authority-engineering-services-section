@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 import { indexModuleCorpus } from "@red-cup-engineering/javascript-computer/module-corpus";
 import { readImports } from "@red-cup-engineering/javascript-computer/imports";
 import { jsdocOf } from "@red-cup-engineering/javascript-parser-service";
-import { javascriptSourceResolver } from "@red-cup-engineering/javascript-node-services-section/module-closure";
+import { javascriptSourceResolver } from "@red-cup-engineering/javascript-node-engineering-services-section/module-closure";
 import { declaredNodeRuntimeEntries } from "./source-entrances.mjs";
 import { workspaceSourceReader } from "./read-workspace-source.mjs";
 import { workspaceModuleGenerationContract } from "./workspace-module-generation.mjs";

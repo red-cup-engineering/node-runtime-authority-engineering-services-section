@@ -4,7 +4,7 @@ import {dirname,join,resolve} from 'node:path';
 import {createHash} from 'node:crypto';
 import {readImports} from '@red-cup-engineering/javascript-computer/imports';
 import {indexModuleCorpus} from '@red-cup-engineering/javascript-computer/module-corpus';
-import {javascriptInstalledResolver} from '@red-cup-engineering/javascript-node-services-section/module-closure';
+import {javascriptInstalledResolver} from '@red-cup-engineering/javascript-node-engineering-services-section/module-closure';
 
 export function assessInstalledInterfaces({entries,namespaces}={}) {
   if(!Array.isArray(entries)||entries.length===0||entries.some(x=>typeof x!=='string')

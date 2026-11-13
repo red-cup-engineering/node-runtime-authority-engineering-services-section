@@ -1,6 +1,6 @@
 import {readFileSync,realpathSync} from 'node:fs';
 import {isAbsolute,relative,resolve} from 'node:path';
-import {javascriptInstalledResolver} from '@red-cup-engineering/javascript-node-services-section/module-closure';
+import {javascriptInstalledResolver} from '@red-cup-engineering/javascript-node-engineering-services-section/module-closure';
 import {nodeJobProgramEntries} from '@red-cup-engineering/node-job-service';
 
 /** Collect caller-selected installed roots without running application or job programmes.
