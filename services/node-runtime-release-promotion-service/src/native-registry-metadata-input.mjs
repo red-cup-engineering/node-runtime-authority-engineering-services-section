@@ -221,7 +221,7 @@ export async function admitNativeMetadataInput({ workspace, pnpm, stage }) {
   const source = await readNodeWorkspace({ workspace: root, pnpm });
   const project = relative(source.workspace, ownerRoot).split(sep).join('/');
   requireInput(source.importerIds.includes(project) && inside(source.workspace, ownerRoot), 'metadata-owner-outside-workspace');
-  requireInput(project.endsWith('services/node-runtime-authority-services-section/services/node-runtime-release-promotion-service'),
+  requireInput(project.endsWith('services/node-runtime-authority-engineering-services-section/services/node-runtime-release-promotion-service'),
     'metadata-owner-path-mismatch');
   for (const file of moduleFiles) source.reader.bytes(join(ownerRoot, file));
   const lock = await provider.nativeLock(source.workspace, configuration.config);
