@@ -2,11 +2,11 @@ import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import { join, relative } from "node:path";
 
-export const RELEASE_RECEIPT = "release-receipt.json";
+export const RELEASE_RECORD = "release-receipt.json";
 
 // Installed dependencies are derived from the lockfile the release carries, so they are not
 // part of its identity: a release installed in place still verifies, and so does a rollback to it.
-const DERIVED = new Set([RELEASE_RECEIPT, "node_modules"]);
+const DERIVED = new Set([RELEASE_RECORD, "node_modules"]);
 
 /**
  * A release may declare further derived paths: files its install builds from the sources it

@@ -115,7 +115,7 @@ async function observePackageSlot(workspace, from, name) {
   }
   return null;
 }
-export async function observeSupplierSlot(workspace, from, name) {
+export async function observeProviderSlot(workspace, from, name) {
   const installed = await observePackageSlot(workspace, from, name);
   requireInput(installed, 'metadata-installed-supplier-missing');
   requireInput(installed.manifest.type === 'module' && installed.manifest.exports?.['.'] === './lib/index.js',
@@ -131,7 +131,7 @@ export async function observeSupplierSlot(workspace, from, name) {
  * only package-root node_modules/.bin wrappers; bind those separately. Refuse
  * package-content symlinks rather than assuming their import parent is unchanged.
  * This does not change runtimeFingerprint's other callers. */
-export async function observeSupplierClosure(workspace, roots) {
+export async function observeProviderClosure(workspace, roots) {
   const packages = new Map();
   async function visit(root) {
     if (packages.has(root)) return;
@@ -176,10 +176,10 @@ export async function observeSupplierClosure(workspace, roots) {
   return [...packages.values()].sort((a, b) => a.project.localeCompare(b.project));
 }
 
-async function supplierIdentity(workspace, cohort, pnpm) {
+async function providerIdentity(workspace, cohort, pnpm) {
   const instances = [], cache = new Map(); // Never share this cache between observations.
   for (const supplier of cohort.suppliers) {
-    const installed = await observeSupplierSlot(workspace, join(ownerRoot, 'src'), supplier.name);
+    const installed = await observeProviderSlot(workspace, join(ownerRoot, 'src'), supplier.name);
     requireInput(installed.manifest.name === supplier.name && installed.manifest.version === supplier.version,
       'metadata-installed-supplier-mismatch');
     const project = relative(workspace, installed.root).split(sep).join('/');
@@ -187,11 +187,11 @@ async function supplierIdentity(workspace, cohort, pnpm) {
       entry: relative(workspace, installed.entry).split(sep).join('/'),
       ...await runtimeFingerprint(workspace, project, cache) });
   }
-  const slots = await observeSupplierClosure(workspace, instances.map(instance => resolve(workspace, instance.project)));
+  const slots = await observeProviderClosure(workspace, instances.map(instance => resolve(workspace, instance.project)));
   return { instances, slots, cli: await cliIdentity(pnpm) };
 }
 
-export async function admitNativeMetadataInput({ workspace, pnpm, stage }) {
+export async function validateNativeMetadataInput({ workspace, pnpm, stage }) {
   const manifest = JSON.parse(await readFile(join(ownerRoot, 'package.json'), 'utf8'));
   const cohort = JSON.parse(await readFile(join(ownerRoot, 'data/records/native-registry-metadata-suppliers.json'), 'utf8'));
   assertOwnerStage(manifest, stage, cohort);
@@ -206,18 +206,18 @@ export async function admitNativeMetadataInput({ workspace, pnpm, stage }) {
     if (present) earlySource.bytes(join(root, file));
   }
   for (const file of moduleFiles) earlySource.bytes(join(ownerRoot, file));
-  const suppliers = await supplierIdentity(root, cohort, pnpm);
-  requireInput(identityOf(initialCli) === identityOf(suppliers.cli), 'metadata-cli-changed');
+  const providers = await providerIdentity(root, cohort, pnpm);
+  requireInput(identityOf(initialCli) === identityOf(providers.cli), 'metadata-cli-changed');
   const provider = await import('./native-registry-metadata-provider.mjs');
   const esmEntries = provider.nativeSupplierImports();
-  for (const instance of suppliers.instances) requireInput(
+  for (const instance of providers.instances) requireInput(
     await realpath(fileURLToPath(esmEntries[instance.name])) === resolve(root, instance.entry), 'metadata-supplier-esm-target-mismatch');
   // PNPM list initializes pnpmfiles. Refuse all unreceived hooks/helpers/config
   // dependencies using the admitted native config reader BEFORE inventory CLI.
   const rootManifest = JSON.parse(earlySource.bytes(join(root, 'package.json')));
   const configuration = await provider.nativeConfig(root, { inventory: true, rootManifest });
   await earlySource.verify();
-  requireInput(identityOf(await supplierIdentity(root, cohort, pnpm)) === identityOf(suppliers), 'metadata-supplier-changed');
+  requireInput(identityOf(await providerIdentity(root, cohort, pnpm)) === identityOf(providers), 'metadata-supplier-changed');
   const source = await readNodeWorkspace({ workspace: root, pnpm });
   const project = relative(source.workspace, ownerRoot).split(sep).join('/');
   requireInput(source.importerIds.includes(project) && inside(source.workspace, ownerRoot), 'metadata-owner-outside-workspace');
@@ -238,13 +238,13 @@ export async function admitNativeMetadataInput({ workspace, pnpm, stage }) {
     schema: METADATA_SCHEMA, owner: manifest.name, stage,
     source: { commit: source.commit, mounts: source.reader.mounts,
       files: [...source.reader.sources.values()].sort((a, b) => a.path.localeCompare(b.path)) },
-    suppliers: { ...suppliers, installedGraph }, policy: configuration.identity,
+    suppliers: { ...providers, installedGraph }, policy: configuration.identity,
     coverage: { total: records.total, registry: records.registry.length, nonRegistry: records.nonRegistry.length,
       nativeSelectionsSha256: identityOf(records) },
   };
   async function verifyUnchanged() {
     await source.reader.verify();
-    requireInput(identityOf(await supplierIdentity(source.workspace, cohort, pnpm)) === identityOf(suppliers),
+    requireInput(identityOf(await providerIdentity(source.workspace, cohort, pnpm)) === identityOf(providers),
       'metadata-supplier-changed');
     const current = await provider.nativeConfig(source.workspace, { inventory: true, rootManifest });
     requireInput(identityOf(current.identity) === identityOf(configuration.identity), 'metadata-policy-changed');
@@ -268,13 +268,13 @@ export function assertAcquisitionBinding(acquisition, binding) {
   requireInput(Number.isFinite(Date.parse(acquisition.startedAt)) && Number.isFinite(Date.parse(acquisition.finishedAt)) &&
     acquisition.startedAt <= acquisition.finishedAt, 'metadata-acquisition-interval-invalid');
 }
-export function assertRetainedNativeFiles(actual, expected) {
+export function assertKeptNativeFiles(actual, expected) {
   requireInput(identityOf(actual) === identityOf(expected), 'metadata-input-digest-mismatch');
 }
 /** Refuse lexical aliases before effects. Every existing ancestor must be a
  * real directory, and the canonical output must be disjoint from source. This
  * same admission is used by acquisition, receiving and later verification. */
-export async function admitMetadataOutput(workspace, output, { create = false } = {}) {
+export async function validateMetadataOutput(workspace, output, { create = false } = {}) {
   requireInput(typeof output === 'string' && output.length > 0, 'metadata-output-invalid');
   const target = resolve(output), source = await realpath(workspace), ancestors = [];
   for (let at = target;; at = dirname(at)) { ancestors.unshift(at); if (dirname(at) === at) break; }
@@ -290,52 +290,52 @@ export async function admitMetadataOutput(workspace, output, { create = false } 
 }
 
 export async function acquireNativeMetadataInput(options) {
-  const admitted = await admitNativeMetadataInput(options);
-  const output = await admitMetadataOutput(admitted.workspace, options.output, { create: true });
+  const validated = await validateNativeMetadataInput(options);
+  const output = await validateMetadataOutput(validated.workspace, options.output, { create: true });
   await mkdir(output, { mode: 0o700 }); // Exclusive fresh directory; no inherited verdict or metadata.
   const cacheDir = join(output, 'cache'); await mkdir(cacheDir, { mode: 0o700 });
   const startedAt = new Date().toISOString();
-  await admitted.provider.nativeMetadataPass({ ...admitted, cacheDir, offline: false });
-  await admitted.verifyUnchanged();
+  await validated.provider.nativeMetadataPass({ ...validated, cacheDir, offline: false });
+  await validated.verifyUnchanged();
   const acquisition = { schema: METADATA_SCHEMA, state: 'awaiting-separate-process-receiving',
-    binding: admitted.binding, startedAt, finishedAt: new Date().toISOString() };
+    binding: validated.binding, startedAt, finishedAt: new Date().toISOString() };
   await writeExclusive(join(output, 'acquisition.json'), acquisition);
   // Do not force process.exit: native best-effort mirror writes finish naturally.
-  return { state: acquisition.state, registryRecords: admitted.records.registry.length };
+  return { state: acquisition.state, registryRecords: validated.records.registry.length };
 }
 
 /** Called by the orchestrator only after the acquisition child exits naturally.
  * Direct verification is also available for later immutable-input custody checks. */
 export async function receiveNativeMetadataInput(options, { verifyOnly = false } = {}) {
-  const admitted = await admitNativeMetadataInput(options);
-  const output = await admitMetadataOutput(admitted.workspace, options.output);
+  const validated = await validateNativeMetadataInput(options);
+  const output = await validateMetadataOutput(validated.workspace, options.output);
   const acquisitionPath = join(output, 'acquisition.json');
   const acquisitionState = await lstat(acquisitionPath);
   requireInput(acquisitionState.isFile() && !acquisitionState.isSymbolicLink(), 'metadata-receipt-shape-unreceived');
   const acquisition = JSON.parse(await readFile(acquisitionPath, 'utf8'));
-  assertAcquisitionBinding(acquisition, admitted.binding);
-  const cacheDir = await admitMetadataOutput(admitted.workspace, join(output, 'cache'));
+  assertAcquisitionBinding(acquisition, validated.binding);
+  const cacheDir = await validateMetadataOutput(validated.workspace, join(output, 'cache'));
   const expectedNames = verifyOnly ? ['acquisition.json', 'cache', 'metadata-input.json'] : ['acquisition.json', 'cache'];
   requireInput(identityOf((await readdir(output)).sort()) === identityOf(expectedNames.sort()), 'metadata-unexpected-input-entry');
-  const before = await admitted.provider.inspectNativeMirrors(cacheDir, admitted.records);
+  const before = await validated.provider.inspectNativeMirrors(cacheDir, validated.records);
   let received;
   if (verifyOnly) {
-    const receiptState = await lstat(join(output, 'metadata-input.json'));
-    requireInput(receiptState.isFile() && !receiptState.isSymbolicLink(), 'metadata-receipt-shape-unreceived');
+    const recordState = await lstat(join(output, 'metadata-input.json'));
+    requireInput(recordState.isFile() && !recordState.isSymbolicLink(), 'metadata-receipt-shape-unreceived');
     received = JSON.parse(await readFile(join(output, 'metadata-input.json'), 'utf8'));
     requireInput(typeof options.identity === 'string' && /^[a-f0-9]{64}$/u.test(options.identity) &&
       received.identity === options.identity, 'metadata-expected-identity-mismatch');
     const { identity, ...body } = received;
-    assertRetainedNativeFiles(before, received.files);
+    assertKeptNativeFiles(before, received.files);
     requireInput(identity === identityOf(body) &&
       received.acquisitionSha256 === sha256(await readFile(join(output, 'acquisition.json'))), 'metadata-input-digest-mismatch');
   }
-  const result = await admitted.provider.nativeMetadataPass({ ...admitted, cacheDir, offline: true });
-  requireInput(identityOf(await admitted.provider.inspectNativeMirrors(cacheDir, admitted.records)) === identityOf(before),
+  const result = await validated.provider.nativeMetadataPass({ ...validated, cacheDir, offline: true });
+  requireInput(identityOf(await validated.provider.inspectNativeMirrors(cacheDir, validated.records)) === identityOf(before),
     'metadata-mirror-changed');
-  await admitted.verifyUnchanged();
+  await validated.verifyUnchanged();
   if (!verifyOnly) {
-    const body = { schema: METADATA_SCHEMA, state: 'received-material', bindingSha256: identityOf(admitted.binding),
+    const body = { schema: METADATA_SCHEMA, state: 'received-material', bindingSha256: identityOf(validated.binding),
       acquisitionSha256: sha256(await readFile(join(output, 'acquisition.json'))), files: before, coverage: result,
       receivedAt: new Date().toISOString(), scope: 'native-api-material; stock OS-network-denied deployment remains separate' };
     received = { ...body, identity: identityOf(body) };

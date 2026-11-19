@@ -11,7 +11,7 @@ export function snapshotInstantOf(name) {
 }
 
 /** The snapshot names to keep, newest first; names that carry no instant are always kept. */
-export function retainedSnapshots(names, { keep = 3, keepDays = 14, now = new Date().toISOString() } = {}) {
+export function keptSnapshots(names, { keep = 3, keepDays = 14, now = new Date().toISOString() } = {}) {
   const dated = names.map((name) => ({ name, at: snapshotInstantOf(name) })).filter((entry) => entry.at !== undefined)
     .sort((left, right) => right.at.localeCompare(left.at));
   const kept = new Set(names.filter((name) => snapshotInstantOf(name) === undefined));
@@ -29,6 +29,6 @@ export function retainedSnapshots(names, { keep = 3, keepDays = 14, now = new Da
 
 /** The snapshot names to remove. */
 export const prunedSnapshots = (names, options) => {
-  const kept = new Set(retainedSnapshots(names, options));
+  const kept = new Set(keptSnapshots(names, options));
   return names.filter((name) => !kept.has(name));
 };

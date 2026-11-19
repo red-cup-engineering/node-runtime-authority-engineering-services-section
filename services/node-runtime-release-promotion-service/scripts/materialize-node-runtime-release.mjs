@@ -9,11 +9,11 @@ function option(name, fallback) {
   return process.argv[index + 1];
 }
 
-const receipt = await materializeNodeRuntimeRelease({
+const record = await materializeNodeRuntimeRelease({
   stagedRoot: option("--staged"),
   releaseRoot: option("--release-root"),
   source: JSON.parse(option("--source", "{}")),
   derived: JSON.parse(option("--derived", "[]")),
   identity: option("--identity") === undefined ? undefined : JSON.parse(option("--identity")),
 });
-process.stdout.write(`${JSON.stringify(receipt)}\n`);
+process.stdout.write(`${JSON.stringify(record)}\n`);

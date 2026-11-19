@@ -9,7 +9,7 @@ import { join } from "node:path";
 import {
   commitTreeSync, derivedCommit, entryAt, git, gitSync, gitText, gitTextSync, isAncestor, replaceInTree, replaceInTreeSync, treeOf, treeOfSync, writeBlob, writeBlobSync,
 } from "@red-cup-engineering/git-engine/git-objects";
-import { LOCKFILE, qualifyWorkspaceLockfile } from "./workspace-lockfile.mjs";
+import { LOCKFILE, validateWorkspaceLockfile } from "./workspace-lockfile.mjs";
 import { releaseClaim } from "./claims.mjs";
 import { EMPTY_WITNESS_ROOT, identifyJsonSemanticContent } from "@red-cup-engineering/computer-code-engine/semiotic-expression-notation/semantic-content-identity";
 
@@ -19,48 +19,48 @@ export const ORIGIN_QUEUE_REFSPEC = "+refs/heads/queue/*:refs/remotes/origin/que
 const NAME = /^[a-z0-9][a-z0-9._-]*(\/[a-z0-9][a-z0-9._-]*)+$/u;
 
 export const candidateNameOk = (name) => NAME.test(name) && !name.includes("..") && !name.endsWith(".lock");
-export const verdictsOf = (queueRoot) => join(queueRoot, "verdicts");
-const verdictKey = (name, commit) => `${name.replaceAll("/", "~")}@${commit}`;
+export const resultsOf = (queueRoot) => join(queueRoot, "verdicts");
+const resultKey = (name, commit) => `${name.replaceAll("/", "~")}@${commit}`;
 
 /** Every verdict the queue has given, by candidate name and commit. */
-export function readVerdicts(queueRoot) {
-  const directory = verdictsOf(queueRoot);
-  const verdicts = new Map();
+export function readResults(queueRoot) {
+  const directory = resultsOf(queueRoot);
+  const results = new Map();
   for (const file of existsSync(directory) ? readdirSync(directory).filter((name) => name.endsWith(".json")).sort() : []) {
     try {
-      const verdict = JSON.parse(readFileSync(join(directory, file), "utf8"));
-      verdicts.set(verdictKey(verdict.candidate.name, verdict.candidate.commit), verdict);
+      const result = JSON.parse(readFileSync(join(directory, file), "utf8"));
+      results.set(resultKey(result.candidate.name, result.candidate.commit), result);
     } catch {}
   }
-  return verdicts;
+  return results;
 }
 
 /** When the queue last integrated a batch (its newest `integrated` verdict), or 0: the queue's own
  *  progress, which main's patience is measured against. Verdict files are named by their time, so
  *  the newest are read first and the scan stops at the first integration. */
 export function lastIntegrationAt(queueRoot) {
-  const directory = verdictsOf(queueRoot);
+  const directory = resultsOf(queueRoot);
   const names = existsSync(directory) ? readdirSync(directory).filter((name) => name.endsWith(".json")).sort().reverse() : [];
   for (const name of names) {
     try {
-      const verdict = JSON.parse(readFileSync(join(directory, name), "utf8"));
-      if (verdict.verdict === "integrated") return Date.parse(verdict.recordedAt) || 0;
+      const result = JSON.parse(readFileSync(join(directory, name), "utf8"));
+      if (result.verdict === "integrated") return Date.parse(result.recordedAt) || 0;
     } catch {}
   }
   return 0;
 }
 
-export function verdictOf(queueRoot, name, commit) {
-  return readVerdicts(queueRoot).get(verdictKey(name, commit));
+export function resultOf(queueRoot, name, commit) {
+  return readResults(queueRoot).get(resultKey(name, commit));
 }
 
-function writeVerdict(queueRoot, verdict) {
-  const directory = verdictsOf(queueRoot);
+function writeResult(queueRoot, result) {
+  const directory = resultsOf(queueRoot);
   mkdirSync(directory, { recursive: true });
-  const file = join(directory, `${verdict.recordedAt.replaceAll(":", "-")}-${verdictKey(verdict.candidate.name, verdict.candidate.commit)}.json`);
-  writeFileSync(`${file}.partial`, `${JSON.stringify(verdict, null, 2)}\n`);
+  const file = join(directory, `${result.recordedAt.replaceAll(":", "-")}-${resultKey(result.candidate.name, result.candidate.commit)}.json`);
+  writeFileSync(`${file}.partial`, `${JSON.stringify(result, null, 2)}\n`);
   renameSync(`${file}.partial`, file);
-  return verdict;
+  return result;
 }
 
 /**
@@ -69,7 +69,7 @@ function writeVerdict(queueRoot, verdict) {
  */
 export async function pendingCandidates({ repository, queueRoot }) {
   const listed = await gitText(repository, ["for-each-ref", "--format=%(refname)%00%(objecttype)%00%(objectname)%00%(*objectname)%00%(committerdate:unix)%00%(taggerdate:unix)%00%(contents)%01", QUEUE_REF, ORIGIN_QUEUE_REF]);
-  const verdicts = readVerdicts(queueRoot);
+  const results = readResults(queueRoot);
   const byName = new Map();
   for (const record of listed.split("\u0001").map((line) => line.replace(/^\n/u, "")).filter(Boolean)) {
     const [ref, type, object, peeled, committedAt, taggedAt, contents] = record.split("\0");
@@ -79,7 +79,7 @@ export async function pendingCandidates({ repository, queueRoot }) {
     const at = tagged ? taggedAt : committedAt;
     const local = ref.startsWith(QUEUE_REF);
     const name = ref.slice((local ? QUEUE_REF : ORIGIN_QUEUE_REF).length);
-    if (!candidateNameOk(name) || verdicts.has(verdictKey(name, commit))) continue;
+    if (!candidateNameOk(name) || results.has(resultKey(name, commit))) continue;
     const prior = byName.get(name);
     if (prior && (prior.local || !local)) continue;
     byName.set(name, { name, ref, commit, at: Number(at), local, ...(tagged ? { tag: object, message: contents.trim() } : {}) });
@@ -248,7 +248,7 @@ export async function absorbOutsideMain({ repository, base, now, commit }) {
 export async function deriveIntegration({ repository, base, head, lockfile }) {
   if (!lockfile?.derive) return { commit: head, derived: [] };
   if (lockfile.path !== undefined && lockfile.path !== LOCKFILE) throw new TypeError("workspace lock qualification owns pnpm-lock.yaml only");
-  const { lockfile: bytes, changed } = await qualifyWorkspaceLockfile({ repository, commit: head,
+  const { lockfile: bytes, changed } = await validateWorkspaceLockfile({ repository, commit: head,
     derive: lockfile.derive, install: lockfile.install, stateDirectory: lockfile.stateDirectory, execution: lockfile.execution, home: lockfile.home });
   if (!changed) return { commit: head, derived: [] };
   const path = lockfile.path ?? LOCKFILE;
@@ -262,30 +262,30 @@ export async function deriveIntegration({ repository, base, head, lockfile }) {
 }
 
 /** Retires a candidate's naming once it has its verdict; a ref renamed since names a new candidate. */
-async function retire(repository, candidate) {
+async function remove(repository, candidate) {
   if (candidate.main) return;
   if (candidate.local) await git(repository, ["update-ref", "-d", candidate.ref, candidate.tag ?? candidate.commit]).catch(() => {});
   else await git(repository, ["push", "--quiet", "--no-verify", "origin", `--force-with-lease=refs/heads/queue/${candidate.name}:${candidate.commit}`, `:refs/heads/queue/${candidate.name}`]).catch(() => {});
 }
 
 /** Records one verdict per candidate and retires each answered naming. */
-export async function answer({ repository, queueRoot, candidates, verdict, main, integration, reason, said, paths, batch, onStep = () => {} }) {
+export async function answer({ repository, queueRoot, candidates, verdict: result, main, integration, reason, said, paths, batch, onStep = () => {} }) {
   const recordedAt = new Date().toISOString();
   for (const candidate of candidates) {
     // When the candidate was named and how long its answer took: the queue's own time to live.
     const namedAt = Number.isFinite(candidate.at) ? new Date(candidate.at * 1000).toISOString() : undefined;
-    writeVerdict(queueRoot, {
+    writeResult(queueRoot, {
       type: "NodeIntegrationVerdict", version: 1,
       candidate: { name: candidate.name, ref: candidate.ref, commit: candidate.commit, ...(namedAt ? { namedAt } : {}) },
       ...(namedAt ? { elapsedSeconds: Math.round((Date.parse(recordedAt) - candidate.at * 1000) / 1000) } : {}),
-      verdict, main, ...(integration ? { integration } : {}), ...(batch ? { batch } : {}),
+      verdict: result, main, ...(integration ? { integration } : {}), ...(batch ? { batch } : {}),
       ...(reason ? { reason } : {}), ...(said ? { said } : {}), ...(paths ? { paths: paths(candidate) } : {}),
       recordedAt,
     });
-    onStep(`${verdict}: ${candidate.name} ${candidate.commit.slice(0, 12)}`);
+    onStep(`${result}: ${candidate.name} ${candidate.commit.slice(0, 12)}`);
     // An integrated slice has done the work it claimed: its claim is released.
-    if (verdict === "integrated") releaseClaim(queueRoot, candidate.name);
-    await retire(repository, candidate);
+    if (result === "integrated") releaseClaim(queueRoot, candidate.name);
+    await remove(repository, candidate);
   }
 }
 
@@ -329,5 +329,5 @@ export function setSuspects(queueRoot, keys) {
 }
 /** A failed batch's two halves, in queue order. */
 export const halves = (keys) => [keys.slice(0, Math.ceil(keys.length / 2)), keys.slice(Math.ceil(keys.length / 2))];
-export const candidateKey = (candidate) => verdictKey(candidate.name, candidate.commit);
+export const candidateKey = (candidate) => resultKey(candidate.name, candidate.commit);
 

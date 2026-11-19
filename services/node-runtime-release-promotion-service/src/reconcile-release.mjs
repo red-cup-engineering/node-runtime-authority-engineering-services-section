@@ -31,9 +31,9 @@ import { mkdir, readFile, readdir, readlink, realpath, rename, writeFile } from 
 import { homedir } from "node:os";
 import { basename, delimiter, dirname, isAbsolute, normalize, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { ORIGIN_QUEUE_REFSPEC, lastIntegrationAt, pendingCandidates, verdictOf } from "./integrate.mjs";
+import { ORIGIN_QUEUE_REFSPEC, lastIntegrationAt, pendingCandidates, resultOf } from "./integrate.mjs";
 import { readClaims } from "./claims.mjs";
-import { RELEASE_RECEIPT } from "./release-digest.mjs";
+import { RELEASE_RECORD } from "./release-digest.mjs";
 import { verifyReleaseDrift } from "./release-drift.mjs";
 
 const RELEASE_SCRIPT = "scripts/release-git-commit.mjs";
@@ -46,8 +46,8 @@ const service = fileURLToPath(new URL("..", import.meta.url));
 function shippedIn() {
   for (let candidate = service; ; candidate = dirname(candidate)) {
     if (existsSync(resolve(candidate, ".git"))) return { path: relative(candidate, service), commit: null };
-    const receipt = resolve(candidate, RELEASE_RECEIPT);
-    if (existsSync(receipt)) return { path: relative(candidate, service), commit: JSON.parse(readFileSync(receipt, "utf8")).source?.commit ?? null };
+    const record = resolve(candidate, RELEASE_RECORD);
+    if (existsSync(record)) return { path: relative(candidate, service), commit: JSON.parse(readFileSync(record, "utf8")).source?.commit ?? null };
     if (dirname(candidate) === candidate) return { path: null, commit: null };
   }
 }
@@ -72,12 +72,12 @@ export function releaseUnitName(spec) {
 
 // Each pass leaves its reading at <releaseRoot>/status.json, the host's release status for any reader.
 export async function reconcileNodeRelease(options) {
-  const { root, readout } = await reconcile(options);
+  const { root, readout: report } = await reconcile(options);
   await mkdir(root, { recursive: true });
   const temporary = `${root}/.status.json.${process.pid}`;
-  await writeFile(temporary, `${JSON.stringify(readout, null, 2)}\n`);
+  await writeFile(temporary, `${JSON.stringify(report, null, 2)}\n`);
   await rename(temporary, `${root}/status.json`);
-  return readout;
+  return report;
 }
 
 async function reconcile({
@@ -112,7 +112,7 @@ async function reconcile({
   if (remoteHost !== null && remoteHost !== allowedRemoteHost) throw new TypeError("node-release-reconcile: remote host is not authorized by this operation");
   if (remoteHost !== null && verifyDrift) throw new TypeError("node-release-reconcile: remote drift verification is not available");
   const root = resolve(home, spec.releaseRoot);
-  const receipts = resolve(home, spec.receiptRoot);
+  const records = resolve(home, spec.receiptRoot);
   const unit = releaseUnitName(spec);
   const shellQuote = (value) => `'${String(value).replaceAll("'", "'\\''")}'`;
   const remoteRun = async (script) => {
@@ -132,28 +132,28 @@ async function reconcile({
   const runningDigest = remoteHost === null
     ? await readlink(resolve(root, "current")).catch(() => null)
     : await remoteRead(`readlink ${shellQuote(`${spec.releaseRoot}/current`)}`, { optional: true });
-  const runningReceipt = runningDigest === null ? null
+  const runningRecord = runningDigest === null ? null
     : remoteHost === null
       ? await readFile(resolve(root, runningDigest, "release-receipt.json"), "utf8").then(JSON.parse, () => null)
       : JSON.parse(await remoteRead(`cat ${shellQuote(`${spec.releaseRoot}/${runningDigest}/release-receipt.json`)}`));
-  const running = { commit: runningReceipt?.source?.commit ?? null, digest: runningDigest };
-  const readout = (state, extra = {}) => ({ root, readout: Object.freeze({ kind: "node-release-reconciliation", checkedAt, spec: specPath, host: remoteHost ?? "local", unit, desired: { commit: desired }, running, state, ...extra }) });
-  let refusalNames;
-  const refusalsListed = async () => refusalNames ??= (remoteHost === null ? await readdir(receipts).catch(() => [])
+  const running = { commit: runningRecord?.source?.commit ?? null, digest: runningDigest };
+  const report = (state, extra = {}) => ({ root, readout: Object.freeze({ kind: "node-release-reconciliation", checkedAt, spec: specPath, host: remoteHost ?? "local", unit, desired: { commit: desired }, running, state, ...extra }) });
+  let rejectionNames;
+  const rejectionsListed = async () => rejectionNames ??= (remoteHost === null ? await readdir(records).catch(() => [])
     : (await remoteRead(`if test -d ${shellQuote(spec.receiptRoot)}; then ls -1 ${shellQuote(spec.receiptRoot)}; fi`)).split("\n"))
     .filter((name) => name.endsWith(".refusal.json"));
-  const refusalOf = async (name) => {
-    const receiptPath = remoteHost === null ? resolve(receipts, name) : `${spec.receiptRoot}/${name}`;
-    const receipt = JSON.parse(remoteHost === null
-      ? await readFile(receiptPath, "utf8")
-      : await remoteRead(`cat ${shellQuote(receiptPath)}`));
-    return { target: receipt.commit, tool: receipt.tool, reason: receipt.reason, receipt: remoteHost === null ? receiptPath : `${remoteHost}:${receiptPath}` };
+  const rejectionOf = async (name) => {
+    const recordPath = remoteHost === null ? resolve(records, name) : `${spec.receiptRoot}/${name}`;
+    const record = JSON.parse(remoteHost === null
+      ? await readFile(recordPath, "utf8")
+      : await remoteRead(`cat ${shellQuote(recordPath)}`));
+    return { target: record.commit, tool: record.tool, reason: record.reason, receipt: remoteHost === null ? recordPath : `${remoteHost}:${recordPath}` };
   };
   // Receipt names lead with their recording time, colons spelled as dashes.
-  const standingRefusal = async () => {
-    const since = String(runningReceipt?.materializedAt ?? "").replaceAll(":", "-");
-    const name = (await refusalsListed()).filter((candidate) => candidate > since).sort().at(-1);
-    return name === undefined ? {} : { refusal: Object.freeze(await refusalOf(name)) };
+  const standingRejection = async () => {
+    const since = String(runningRecord?.materializedAt ?? "").replaceAll(":", "-");
+    const name = (await rejectionsListed()).filter((candidate) => candidate > since).sort().at(-1);
+    return name === undefined ? {} : { refusal: Object.freeze(await rejectionOf(name)) };
   };
   // Receiving runs the installed service's complete dependency closure. Unreceived source
   // is input to admission, never a substitute executable receiver or a partial tool archive.
@@ -169,7 +169,7 @@ async function reconcile({
     + `if [ -f "$lock" ] || [ -e "$lock/holder.json" ]; then exit 1; fi; `
     + `if [ ! -e "$lock/lease" ]; then exit 0; fi; flock --nonblock --shared "$lock/lease" true`;
   const locked = (remoteHost === null ? await run("sh", ["-c", lockProbe], { cwd: home }) : await remoteRun(lockProbe)).code !== 0;
-  if (unitActive || locked) return readout("releasing", await standingRefusal());
+  if (unitActive || locked) return report("releasing", await standingRejection());
 
   // Released bytes differ only where the spec's archives differ; anything else is data the host
   // does not run. A branch that is behind the running commit waits for the branch to catch up.
@@ -189,13 +189,13 @@ async function reconcile({
   const queueRoot = resolve(root, "queue");
   const pending = remoteHost === null ? await pendingCandidates({ repository, queueRoot }) : [];
   const refusalOf_ = async (commit) => {
-    const name = (await refusalsListed()).filter((candidate) => candidate.endsWith(`-${commit}.refusal.json`)).sort().at(-1);
+    const name = (await rejectionsListed()).filter((candidate) => candidate.endsWith(`-${commit}.refusal.json`)).sort().at(-1);
     if (name === undefined) return null;
-    const refusal = await refusalOf(name);
-    return refusal.tool === await toolCommitOf(commit) ? refusal : null;
+    const rejection = await rejectionOf(name);
+    return rejection.tool === await toolCommitOf(commit) ? rejection : null;
   };
   const healOwed = remoteHost === null && basis === null && known
-    && (await refusalOf_(desired)) !== null && verdictOf(queueRoot, "node/main", desired) === undefined;
+    && (await refusalOf_(desired)) !== null && resultOf(queueRoot, "node/main", desired) === undefined;
   const claims = remoteHost === null ? readClaims(queueRoot) : [];
   const queue = pending.length > 0 || claims.length > 0 ? { queue: {
     pending: pending.map(({ name, commit }) => `${name}@${commit.slice(0, 12)}`),
@@ -212,13 +212,13 @@ async function reconcile({
   // A main refused since the running release (by any commit's own tool) is not released by patience:
   // a newer outside commit seldom repairs it, and each attempt costs a full release (21:20-21:45Z on
   // 2026-10-03, three attempts on a missing export). The queue, which can carry the repair, goes first.
-  const mainRefusedSince = Object.keys(await standingRefusal()).length > 0;
+  const mainRejectedSince = Object.keys(await standingRejection()).length > 0;
   // Patience runs from when main last had a way out: the oldest commit it lacks, or the queue's last
   // integration, whichever is later. A queue that integrates every few minutes carries main's
   // outside commits with each batch, so a release of main alone would only delay it; on
   // 2026-10-03 at 17:56 an outside merge older than 30 minutes cost the queue a full release.
   const waitingSince = Math.max(oldestLacked, lastIntegrationAt(queueRoot));
-  const mainOverdue = pending.length > 0 && oldestLacked > 0 && waitingSince + patience < now().getTime() && !mainRefusedSince && (await refusalOf_(desired)) === null;
+  const mainOverdue = pending.length > 0 && oldestLacked > 0 && waitingSince + patience < now().getTime() && !mainRejectedSince && (await refusalOf_(desired)) === null;
   if ((pending.length > 0 && !mainOverdue) || healOwed) {
     const integrator = resolve(dirname(await toolOf(desired)), basename(INTEGRATE_SCRIPT));
     if (existsSync(integrator)) {
@@ -228,28 +228,28 @@ async function reconcile({
         process.execPath, integrator, "--repository", repository, "--spec-in-commit", specPath, ...(pending.length === 0 ? ["--heal"] : []),
       ]);
       if (launched.code !== 0) {
-        if ((await run("systemctl", ["--user", "is-active", "--quiet", `${unit}.service`])).code === 0) return readout("releasing", { ...queue, ...await standingRefusal() });
+        if ((await run("systemctl", ["--user", "is-active", "--quiet", `${unit}.service`])).code === 0) return report("releasing", { ...queue, ...await standingRejection() });
         throw new Error(`systemd-run ${unit}: exited ${launched.code}: ${launched.stderr.trim()}`);
       }
-      return readout("integrating", { ...queue, ...(pending.length === 0 ? { healing: desired } : {}), log: `journalctl --user -u ${unit}.service`, ...await standingRefusal() });
+      return report("integrating", { ...queue, ...(pending.length === 0 ? { healing: desired } : {}), log: `journalctl --user -u ${unit}.service`, ...await standingRejection() });
     }
   }
   if (basis !== null) {
-    if (!verifyDrift || runningDigest === null) return readout("converged", { basis, ...queue });
+    if (!verifyDrift || runningDigest === null) return report("converged", { basis, ...queue });
     if (spec.guix) {
       const generation = await realpath(resolve(root, "current"));
       if (!generation.startsWith("/gnu/store/")) throw new Error("the deployment profile is outside the Guix store");
-      return readout("converged", { basis, verified: "guix-store", ...queue });
+      return report("converged", { basis, verified: "guix-store", ...queue });
     }
-    if ((await verifyReleaseDrift({ release: await realpath(resolve(root, "current")), repository })).ok) return readout("converged", { basis, verified: true });
+    if ((await verifyReleaseDrift({ release: await realpath(resolve(root, "current")), repository })).ok) return report("converged", { basis, verified: true });
     target = running.commit;
   }
 
   // A refusal is the target's only when the tool that would release it now made it.
-  const refused = (await refusalsListed()).filter((name) => name.endsWith(`-${target}.refusal.json`)).sort().at(-1);
-  if (refused !== undefined) {
-    const refusal = await refusalOf(refused);
-    if (refusal.tool === await toolCommitOf(target)) return readout("refused", refusal);
+  const rejected = (await rejectionsListed()).filter((name) => name.endsWith(`-${target}.refusal.json`)).sort().at(-1);
+  if (rejected !== undefined) {
+    const rejection = await rejectionOf(rejected);
+    if (rejection.tool === await toolCommitOf(target)) return report("refused", rejection);
   }
   if (target === desired) {
     // The window opens at the oldest commit the running release lacks, not the newest: under
@@ -258,7 +258,7 @@ async function reconcile({
     const lacked = known ? (await git("rev-list", "--reverse", "--format=%ct", "--no-commit-header", `${running.commit}..${desired}`)).split("\n")[0] : "";
     const committedAt = Number(lacked || await git("show", "-s", "--format=%ct", desired)) * 1000;
     const settlesAt = committedAt + settleSeconds * 1000;
-    if (settlesAt > now().getTime()) return readout("settling", { settlesAt: new Date(settlesAt).toISOString(), ...await standingRefusal() });
+    if (settlesAt > now().getTime()) return report("settling", { settlesAt: new Date(settlesAt).toISOString(), ...await standingRejection() });
   }
 
   // The release runs the target commit's own copy of the tool, as a system generation activates
@@ -280,8 +280,8 @@ async function reconcile({
     process.execPath, tool, "--repository", repository, "--spec-in-commit", specPath, "--commit", target,
   ]);
   if (launched.code !== 0) {
-    if ((await run("systemctl", ["--user", "is-active", "--quiet", `${unit}.service`])).code === 0) return readout("releasing", await standingRefusal());
+    if ((await run("systemctl", ["--user", "is-active", "--quiet", `${unit}.service`])).code === 0) return report("releasing", await standingRejection());
     throw new Error(`systemd-run ${unit}: exited ${launched.code}: ${launched.stderr.trim()}`);
   }
-  return readout(target === desired ? "launched" : "healing", { target, log: `journalctl --user -u ${unit}.service`, ...await standingRefusal() });
+  return report(target === desired ? "launched" : "healing", { target, log: `journalctl --user -u ${unit}.service`, ...await standingRejection() });
 }

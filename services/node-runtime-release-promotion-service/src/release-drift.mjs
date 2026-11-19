@@ -6,29 +6,29 @@
 import { createHash } from "node:crypto";
 import { lstat, readFile, readdir, readlink } from "node:fs/promises";
 import { join, relative } from "node:path";
-import { RELEASE_RECEIPT, releaseDigest } from "./release-digest.mjs";
+import { RELEASE_RECORD, releaseDigest } from "./release-digest.mjs";
 import { selectionEntries } from "./release-source.mjs";
 
 const blobId = (bytes) => createHash("sha1").update(`blob ${bytes.length}\0`).update(bytes).digest("hex");
 
 /** `{ ok, kind, drifted: [{ path, why }] }`; for a legacy release, `drifted` is empty and `ok` is the digest's. */
 export async function verifyReleaseDrift({ release, repository }) {
-  const receipt = JSON.parse(await readFile(join(release, RELEASE_RECEIPT), "utf8"));
-  if (receipt.identityVersion === undefined) {
-    return { ok: await releaseDigest(release, { derived: receipt.derived ?? [] }) === receipt.artifactDigest, kind: "byte-digest", drifted: [] };
+  const record = JSON.parse(await readFile(join(release, RELEASE_RECORD), "utf8"));
+  if (record.identityVersion === undefined) {
+    return { ok: await releaseDigest(release, { derived: record.derived ?? [] }) === record.artifactDigest, kind: "byte-digest", drifted: [] };
   }
-  const commit = receipt.source?.commit;
-  if (!commit || !Array.isArray(receipt.source?.archives)) throw new Error("release receipt names no commit to compare with");
-  const entries = selectionEntries({ repository, commit, archives: receipt.source.archives, derived: receipt.derived ?? [] });
+  const commit = record.source?.commit;
+  if (!commit || !Array.isArray(record.source?.archives)) throw new Error("release receipt names no commit to compare with");
+  const entries = selectionEntries({ repository, commit, archives: record.source.archives, derived: record.derived ?? [] });
   const expected = new Map(entries.map((entry) => [entry.path, entry]));
-  const derived = new Set(receipt.derived ?? []);
+  const derived = new Set(record.derived ?? []);
   const drifted = [];
   const seen = new Set();
   async function visit(directory) {
     for (const entry of await readdir(directory, { withFileTypes: true })) {
       const path = join(directory, entry.name);
       const name = relative(release, path);
-      if (entry.name === "node_modules" || name === RELEASE_RECEIPT || derived.has(name)) continue;
+      if (entry.name === "node_modules" || name === RELEASE_RECORD || derived.has(name)) continue;
       if (entry.isDirectory()) { await visit(path); continue; }
       seen.add(name);
       const listed = expected.get(name);

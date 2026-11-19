@@ -6,11 +6,11 @@ export const METADATA_STAGE = 'build-input';
 export const METADATA_SCHEMA = 'native-pnpm-registry-metadata/v1';
 export const PNPM_VERSION = '11.28.5';
 
-export class MetadataInputRefusal extends Error {
+export class MetadataInputRejection extends Error {
   constructor(code) { super(code); this.name = 'MetadataInputRefusal'; this.code = code; }
 }
 export function requireInput(condition, code) {
-  if (!condition) throw new MetadataInputRefusal(code);
+  if (!condition) throw new MetadataInputRejection(code);
 }
 export function assertOwnerStage(manifest, stage, cohort) {
   requireInput(manifest.name === METADATA_OWNER, 'metadata-owner-mismatch');
@@ -18,9 +18,9 @@ export function assertOwnerStage(manifest, stage, cohort) {
   requireInput(cohort.packageManager === 'pnpm@' + PNPM_VERSION && cohort.suppliers.length === 11,
     'metadata-cohort-mismatch');
   requireInput(new Set(cohort.suppliers.map(s => s.name)).size === cohort.suppliers.length, 'metadata-cohort-mismatch');
-  for (const supplier of cohort.suppliers) {
-    requireInput(manifest.devDependencies?.[supplier.name] === supplier.version, 'metadata-cohort-declaration-mismatch');
-    requireInput(!manifest.dependencies?.[supplier.name] && !manifest.optionalDependencies?.[supplier.name], 'metadata-supplier-is-runtime-dependency');
+  for (const provider of cohort.suppliers) {
+    requireInput(manifest.devDependencies?.[provider.name] === provider.version, 'metadata-cohort-declaration-mismatch');
+    requireInput(!manifest.dependencies?.[provider.name] && !manifest.optionalDependencies?.[provider.name], 'metadata-supplier-is-runtime-dependency');
   }
 }
 
