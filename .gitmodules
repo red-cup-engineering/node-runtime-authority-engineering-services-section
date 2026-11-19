@@ -1,0 +1,4 @@
+[submodule "lib/legacy/node-runtime-release-promotion-service"]
+	path = lib/legacy/node-runtime-release-promotion-service
+	url = https://github.com/red-cup-engineering/node-runtime-release-promotion-service.git
+	branch = main
