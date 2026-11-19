@@ -416,7 +416,7 @@ if (spec.sourceRef && !beforePromotion && runningSource?.commit !== commit) {
   // commit main does not hold (a branch released from a worktree, 2026-10-04 17:38Z) is refused
   // before anything is staged, so it never runs where main cannot follow.
   if (!admit && commit !== published) {
-    throw new Error(`release ${commit} is not ${spec.sourceRef} (${published}): only the merge queue releases a commit main does not hold; name it as a candidate (land-candidate.mjs) instead`);
+    throw new Error(`release ${commit} is not ${spec.sourceRef} (${published}): only the merge queue releases a commit main does not hold; name it as a candidate instead`);
   }
 }
 // Each phase says how long it took, so the time from candidate to live is read off the journal.

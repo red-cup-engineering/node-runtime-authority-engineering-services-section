@@ -8,7 +8,7 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSy
 import { join } from "node:path";
 import {
   commitTreeSync, derivedCommit, entryAt, git, gitSync, gitText, gitTextSync, isAncestor, replaceInTree, replaceInTreeSync, treeOf, treeOfSync, writeBlob, writeBlobSync,
-} from "./git-objects.mjs";
+} from "@red-cup-engineering/git-engine/git-objects";
 import { LOCKFILE, qualifyWorkspaceLockfile } from "./workspace-lockfile.mjs";
 import { releaseClaim } from "./claims.mjs";
 import { EMPTY_WITNESS_ROOT, identifyJsonSemanticContent } from "@red-cup-engineering/computer-code-engine/semiotic-expression-notation/semantic-content-identity";

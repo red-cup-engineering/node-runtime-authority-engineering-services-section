@@ -8,7 +8,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { constants as fsConstants, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { gitSync, gitTextSync } from "./git-objects.mjs";
+import { gitSync, gitTextSync } from "@red-cup-engineering/git-engine/git-objects";
 import { derivedPaths } from "./release-digest.mjs";
 import { carryFiles } from "./tree-carry.mjs";
 

@@ -11,7 +11,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
 import process from "node:process";
-import { git, gitText } from "../src/git-objects.mjs";
+import { git, gitText } from "@red-cup-engineering/git-engine/git-objects";
 import {
   ORIGIN_QUEUE_REFSPEC, absorbOutsideMain, answer, candidateKey, composeCandidates, deriveIntegration, halves, pendingCandidates, setSuspectGroups,
   setWaitingOnMain, suspectGroupsOf, waitingOnMain,

@@ -21,7 +21,7 @@ const inside = (root, path) => { const p = relative(root, path); return p === ''
 const moduleFiles = ['src/native-registry-metadata-contract.mjs', 'src/native-registry-metadata-provider.mjs',
   'src/native-registry-metadata-input.mjs', 'scripts/acquire-registry-metadata.mjs',
   'data/records/native-registry-metadata-suppliers.json', 'package.json', '.npmignore', 'src/read-workspace-source.mjs',
-  'src/runtime-bindings.mjs', 'src/release-source.mjs', 'src/git-objects.mjs', 'src/release-digest.mjs', 'src/tree-carry.mjs'];
+  'src/runtime-bindings.mjs', 'src/release-source.mjs', 'src/release-digest.mjs', 'src/tree-carry.mjs'];
 
 async function packageContaining(file) {
   let at = dirname(await realpath(file));
