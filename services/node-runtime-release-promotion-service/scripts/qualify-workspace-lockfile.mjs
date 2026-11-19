@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { execFileSync } from "node:child_process";
 import { planWorkspaceLockfile, qualifyWorkspaceLockfile } from "../src/workspace-lockfile.mjs";
+import { execGitSync } from '@red-cup-engineering/git-engine/git-process';
 
 const usage = "qualify-workspace-lockfile --repository <checkout> --commit <source> --spec-in-commit <release-spec> [--state-dir <outside-source>] [--plan-only | --rederive]";
 const options = {}, args = process.argv.slice(2);
@@ -17,7 +17,7 @@ try {
   if (options.planOnly) {
     process.stdout.write(JSON.stringify({ commit: plan.commit, inputs: plan.inputs }, null, 2) + "\n");
   } else {
-    const spec = JSON.parse(execFileSync("git", ["show", `${plan.commit}:${options["spec-in-commit"]}`], { cwd: plan.repository, encoding: "utf8" }));
+    const spec = JSON.parse(execGitSync(["show", `${plan.commit}:${options["spec-in-commit"]}`], { cwd: plan.repository, encoding: "utf8" }));
     const result = await qualifyWorkspaceLockfile({ repository: plan.repository, commit: plan.commit,
       derive: spec.lockfile?.derive, install: spec.dependencies ?? spec.install, stateDirectory: options["state-dir"], rederive: options.rederive, execution: spec.lockfile?.execution });
     const { lockfile, ...reading } = result;

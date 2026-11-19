@@ -1,16 +1,17 @@
 #!/usr/bin/env node
 import { readFileSync, realpathSync, existsSync, lstatSync } from "node:fs";
 import { resolve, relative, join, isAbsolute, matchesGlob } from "node:path";
-import { spawn, spawnSync, execFileSync } from "node:child_process";
+import { spawn, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { dirname } from "node:path";
 import { gitHistoryPlan, readBatchBlobs } from "@red-cup-engineering/git-engine/git-command-codec";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { receiveSelectedSources, selectDeclaredWorkspaceClosure, readWorkspaceSelectionLock, verifyWorkspaceSelection, exactImporterFilterArgs } from "../src/install-workspace-selection.mjs";
-const producerFile=fileURLToPath(import.meta.url),producerRoot=execFileSync('git',['-C',dirname(producerFile),'rev-parse','--show-toplevel'],{encoding:'utf8'}).trim();
-const producerCommit=execFileSync('git',['-C',producerRoot,'rev-parse','HEAD'],{encoding:'utf8'}).trim(),producerPath=relative(producerRoot,producerFile);
-const producerBytes=readFileSync(producerFile),committedProducer=execFileSync('git',['-C',producerRoot,'show',producerCommit+':'+producerPath]);
+import { execGitSync, spawnGitSync } from '@red-cup-engineering/git-engine/git-process';
+const producerFile=fileURLToPath(import.meta.url),producerRoot=execGitSync(['-C',dirname(producerFile),'rev-parse','--show-toplevel'],{encoding:'utf8'}).trim();
+const producerCommit=execGitSync(['-C',producerRoot,'rev-parse','HEAD'],{encoding:'utf8'}).trim(),producerPath=relative(producerRoot,producerFile);
+const producerBytes=readFileSync(producerFile),committedProducer=execGitSync(['-C',producerRoot,'show',producerCommit+':'+producerPath]);
 if(!producerBytes.equals(committedProducer))throw new Error('source resolver differs from its committed producer');
 const args = process.argv.slice(2), flags = { importers: [] };
 for (let at = 0; at < args.length; at += 2) {
@@ -26,7 +27,7 @@ const root = planned ? realpathSync(previous.workspace) : await verifyWorkspaceS
 const acquiring=planned||flags.sourceLock!==undefined||flags.importers.some(id=>!previous.importerIds.includes(id));
 let ids = [...new Set(['.',...(acquiring?(previous.roots??previous.importerIds):previous.importerIds), ...flags.importers])].sort();
 if (acquiring) {
-  const commit=execFileSync('git',['-C',root,'rev-parse','HEAD'],{encoding:'utf8'}).trim();
+  const commit=execGitSync(['-C',root,'rev-parse','HEAD'],{encoding:'utf8'}).trim();
   if(commit!==previous.commit||createHash('sha256').update(readFileSync(join(root,'pnpm-lock.yaml'))).digest('hex')!==(previous.sourceLockSha256??previous.sourceHashes['pnpm-lock.yaml']))throw new Error('source resolution differs from its exact committed input');
   const locked=await readWorkspaceSelectionLock({workspace:root,tooling:previous.tooling});
   let locators=locked.importers;
@@ -48,7 +49,7 @@ if (acquiring) {
   // owner bodies are materialized. PNPM derives every new importer below.
   const workspaceFile=join(root,'pnpm-workspace.yaml');
   if(!lstatSync(workspaceFile).isFile()||realpathSync(workspaceFile)!==workspaceFile
-    ||!readFileSync(workspaceFile).equals(execFileSync('git',['-C',root,'show',previous.commit+':pnpm-workspace.yaml'])))throw new Error('workspace patterns differ from committed source');
+    ||!readFileSync(workspaceFile).equals(execGitSync(['-C',root,'show',previous.commit+':pnpm-workspace.yaml'])))throw new Error('workspace patterns differ from committed source');
   const workspacePatterns=JSON.parse(execFileSync(previous.executable,['config','get','packages','--json'],{cwd:root,encoding:'utf8',stdio:['ignore','pipe','pipe']}));
   if(!Array.isArray(workspacePatterns)||workspacePatterns.some(pattern=>typeof pattern!=='string'))throw new Error('source workspace must declare package patterns');
   const workspaceOwner=id=>id==='.'||(workspacePatterns.some(pattern=>!pattern.startsWith('!')&&matchesGlob(id,pattern))
@@ -60,10 +61,10 @@ if (acquiring) {
     if(existsSync(file)&&(!lstatSync(file).isFile()||realpathSync(file)!==file))throw new Error('provider manifest is redirected: '+id);
     const source=[{path:'.',revision:previous.commit},...mounts].filter(row=>row.path==='.'||id===row.path||id.startsWith(row.path+'/')).sort((a,b)=>b.path.length-a.path.length)[0];
     const repository=source.path==='.'?root:resolve(root,source.path),path=relative(repository,file);
-    const entry=execFileSync('git',['-c','core.hooksPath=/dev/null','-C',repository,'ls-tree',source.revision,'--',path],{encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim();
+    const entry=execGitSync(['-c','core.hooksPath=/dev/null','-C',repository,'ls-tree',source.revision,'--',path],{encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim();
     if(!entry)return undefined;
     if(!/^(100644|100755) blob [a-f0-9]{40}\t/u.test(entry))throw new Error('provider metadata must be a committed regular file: '+id);
-    const committed=execFileSync('git',['-c','core.hooksPath=/dev/null','-C',repository,'show',source.revision+':'+path],{stdio:['ignore','pipe','pipe']});
+    const committed=execGitSync(['-c','core.hooksPath=/dev/null','-C',repository,'show',source.revision+':'+path],{stdio:['ignore','pipe','pipe']});
     if(existsSync(file)&&!readFileSync(file).equals(committed))throw new Error('provider manifest differs from exact received source: '+id);
     return JSON.parse(committed);
   };
@@ -80,7 +81,7 @@ if (acquiring) {
   const receiveCandidateManifests=()=>{
     for(const source of [{path:'.',revision:previous.commit},...mounts]){
       const repository=source.path==='.'?root:resolve(root,source.path);
-      const tree=execFileSync('git',['-c','core.hooksPath=/dev/null','-C',repository,'ls-tree','-r','-z',source.revision],{encoding:'utf8',maxBuffer:32*1024*1024});
+      const tree=execGitSync(['-c','core.hooksPath=/dev/null','-C',repository,'ls-tree','-r','-z',source.revision],{encoding:'utf8',maxBuffer:32*1024*1024});
       const rows=[];
       for(const row of tree.split('\0').filter(Boolean)){
         const tab=row.indexOf('\t'),[mode,type,oid]=row.slice(0,tab).split(' '),path=row.slice(tab+1);
@@ -145,9 +146,9 @@ if (acquiring) {
           // without hydrating unrelated package or corpus bodies.
           for(const source of [{path:'.',revision:previous.commit},...mounts]){
             const repository=source.path==='.'?root:resolve(root,source.path);
-            const declaration=execFileSync('git',['-C',repository,'ls-tree',source.revision,'--','.gitmodules'],{encoding:'utf8'}).trim();
+            const declaration=execGitSync(['-C',repository,'ls-tree',source.revision,'--','.gitmodules'],{encoding:'utf8'}).trim();
             if(!declaration)continue;
-            const result=spawnSync('git',['-C',repository,'config','--blob',source.revision+':.gitmodules','--get-regexp','[.]path$'],{encoding:'utf8'});
+            const result=spawnGitSync(['-C',repository,'config','--blob',source.revision+':.gitmodules','--get-regexp','[.]path$'],{encoding:'utf8'});
             if(result.error||![0,1].includes(result.status))throw result.error??new Error('current Gitlink metadata was not received');
             for(const line of result.stdout.trim().split('\n').filter(Boolean)){
               const local=line.replace(/^\S+\s+/u,''),path=source.path==='.'?local:source.path+'/'+local;

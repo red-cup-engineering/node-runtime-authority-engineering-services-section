@@ -9,7 +9,7 @@
  * Both readings work on the commit's objects, never a working tree: the manifests are written to a
  * scratch directory, and the package manager reads only them and the lockfile there.
  */
-import { execFileSync, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import micromatch from "micromatch";
 import { parse as parseYaml } from "@red-cup-engineering/yaml-engine/syntax";
@@ -18,6 +18,7 @@ import { accessSync, closeSync, constants, existsSync, fsyncSync, lstatSync, mkd
 import { receivingProcessGroup } from "./node-test-process-group.mjs";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { execGitSync } from '@red-cup-engineering/git-engine/git-process';
 
 export const LOCKFILE = "pnpm-lock.yaml";
 const PACKAGE_MANIFESTS = ["package.json", "package.json5", "package.yaml"];
@@ -25,7 +26,7 @@ const ROOT_FILES = new Set([...PACKAGE_MANIFESTS, LOCKFILE, "pnpm-workspace.yaml
 
 const gitSync = (gitDir, ...args) => {
   const options = args.at(-1) && typeof args.at(-1) === "object" ? args.pop() : {};
-  return execFileSync("git", ["-C", tmpdir(), `--git-dir=${gitDir}`, "--no-replace-objects", ...args], { ...options, env: { ...process.env, GIT_NO_REPLACE_OBJECTS: "1", ...options.env }, maxBuffer: 1 << 28, stdio: options.input === undefined ? ["ignore", "pipe", "pipe"] : ["pipe", "pipe", "pipe"] });
+  return execGitSync(["-C", tmpdir(), `--git-dir=${gitDir}`, "--no-replace-objects", ...args], { ...options, env: { ...process.env, GIT_NO_REPLACE_OBJECTS: "1", ...options.env }, maxBuffer: 1 << 28, stdio: options.input === undefined ? ["ignore", "pipe", "pipe"] : ["pipe", "pipe", "pipe"] });
 };
 
 /** The commit's submodule names by path, from its .gitmodules (a module's gitdir is named for it). */
@@ -158,7 +159,7 @@ export function extractWorkspaceManifests(gitDir, commit, out, { entries = works
   for (const entry of entries) byRepository.set(entry.gitDir, [...(byRepository.get(entry.gitDir) ?? []), entry]);
   for (const [repository, blobs] of byRepository) {
     // One cat-file for the lot: each record is "<oid> blob <size>\n<bytes>\n".
-    const batch = execFileSync("git", ["-C", tmpdir(), `--git-dir=${repository}`, "--no-replace-objects", "cat-file", "--batch"], {
+    const batch = execGitSync(["-C", tmpdir(), `--git-dir=${repository}`, "--no-replace-objects", "cat-file", "--batch"], {
       env: { ...process.env, GIT_NO_REPLACE_OBJECTS: "1" }, input: blobs.map(({ object }) => object).join("\n") + "\n", maxBuffer: 1 << 28,
     });
     let offset = 0;
@@ -177,7 +178,7 @@ export function extractWorkspaceManifests(gitDir, commit, out, { entries = works
 
 // Submodule repositories belong to this worktree. The shared common directory
 // holds root objects, but not the linked worktree’s initialized modules.
-const gitDirOf = (repository) => execFileSync("git", ["-C", repository, "--no-replace-objects", "rev-parse", "--absolute-git-dir"], { env: { ...process.env, GIT_NO_REPLACE_OBJECTS: "1" } }).toString().trim();
+const gitDirOf = (repository) => execGitSync(["-C", repository, "--no-replace-objects", "rev-parse", "--absolute-git-dir"], { env: { ...process.env, GIT_NO_REPLACE_OBJECTS: "1" } }).toString().trim();
 // What the package manager said about its refusal, without the cyclic-workspace warning that
 // leads every run of this workspace.
 const saidOf = (output) => output.split("\n").filter((line) => line.trim() && !/cyclic workspace/iu.test(line)).slice(-24).join("\n");

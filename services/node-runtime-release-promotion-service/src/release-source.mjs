@@ -11,6 +11,7 @@ import { join, resolve } from "node:path";
 import { gitSync, gitTextSync } from "@red-cup-engineering/git-engine/git-objects";
 import { derivedPaths } from "./release-digest.mjs";
 import { carryFiles } from "./tree-carry.mjs";
+import { spawnGitSync } from '@red-cup-engineering/git-engine/git-process';
 
 /** Bump when what the identity is computed from changes; a receipt names the version that named it. */
 export const IDENTITY_VERSION = 1;
@@ -53,7 +54,7 @@ export function composedModules(repository, commit) {
  * beside it, fetched from the submodule's URL, so a release never writes the checkout's tree.
  */
 export function moduleRepository(common, module) {
-  const has = (gitDirectory) => existsSync(gitDirectory) && spawnSync("git", ["--git-dir", gitDirectory, "cat-file", "-e", `${module.object}^{commit}`]).status === 0;
+  const has = (gitDirectory) => existsSync(gitDirectory) && spawnGitSync(["--git-dir", gitDirectory, "cat-file", "-e", `${module.object}^{commit}`]).status === 0;
   const own = resolve(common, "modules", module.name);
   if (has(own)) return own;
   const cache = resolve(common, "composition", `${module.name}.git`);
@@ -153,7 +154,7 @@ function archiveInto(stage, gitDirectory, treeish, paths, cwd) {
 }
 
 const reaches = (repository, gitDirectory, tree, pathspec, exclusions) =>
-  spawnSync("git", [...(gitDirectory ? ["--git-dir", gitDirectory] : []), "diff", "--quiet", "--no-renames", EMPTY_TREE, tree, "--", pathspec, ...exclusions], { cwd: repository, stdio: "ignore" }).status === 1;
+  spawnGitSync([...(gitDirectory ? ["--git-dir", gitDirectory] : []), "diff", "--quiet", "--no-renames", EMPTY_TREE, tree, "--", pathspec, ...exclusions], { cwd: repository, stdio: "ignore" }).status === 1;
 
 /**
  * The whole commit archived into `stage`: each pathspec group from the commit and from every

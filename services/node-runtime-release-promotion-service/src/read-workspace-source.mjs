@@ -3,11 +3,12 @@ import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {existsSync,lstatSync,readFileSync,realpathSync} from 'node:fs';
 import {isAbsolute,join,relative,resolve,sep} from 'node:path';
+import { execGitSync } from '@red-cup-engineering/git-engine/git-process';
 
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 const blob=bytes=>createHash('sha1').update('blob '+bytes.length+'\0').update(bytes).digest('hex');
 const contained=(root,file)=>{const path=relative(root,file);return !isAbsolute(path)&&path!=='..'&&!path.startsWith('..'+sep);};
-const git=(root,...args)=>execFileSync('git',['-C',root,...args],{encoding:'utf8',maxBuffer:32*1024*1024}).trim();
+const git=(root,...args)=>execGitSync(['-C',root,...args],{encoding:'utf8',maxBuffer:32*1024*1024}).trim();
 
 // Git owns recursive source acquisition. Reading never fetches, projects,
 // repins or materializes a second source graph.
@@ -16,7 +17,7 @@ function recursiveSourceMounts(root){
   git(root,'diff','--quiet','HEAD','--','.gitmodules');
   const status=git(root,'submodule','status','--recursive');
   if(status.split('\n').some(line=>/^[-+U]/u.test(line)))throw new Error('recursive source is not at its recorded Gitlinks');
-  const rows=execFileSync('git',['-C',root,'submodule','foreach','--quiet','--recursive',
+  const rows=execGitSync(['-C',root,'submodule','foreach','--quiet','--recursive',
     'test "$(git rev-parse HEAD)" = "$sha1" && git diff --cached --quiet HEAD -- && git diff --quiet HEAD -- .gitmodules && printf "%s\\0%s\\0" "$displaypath" "$sha1"'],
     {encoding:'utf8',maxBuffer:32*1024*1024}).split('\0');
   if(rows.pop()!==''||rows.length%2)throw new Error('Git returned an incomplete recursive source inventory');
@@ -79,7 +80,7 @@ export async function workspaceSourceReader({workspace,commit,importerIds,recurs
   function recordedObject(owner,path){
     if(!path)return null;
     if(owner.objects.has(path))return owner.objects.get(path);
-    const rows=execFileSync('git',['--literal-pathspecs','-C',owner.root,'ls-tree','-z',owner.revision,'--',path],
+    const rows=execGitSync(['--literal-pathspecs','-C',owner.root,'ls-tree','-z',owner.revision,'--',path],
       {encoding:'utf8',maxBuffer:32*1024*1024,env:{...environment,GIT_NO_LAZY_FETCH:'1'}}).split('\0').filter(Boolean);
     let fact=null;
     for(const row of rows){
