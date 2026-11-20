@@ -2,7 +2,7 @@ import { sha256Hex } from "@red-cup-engineering/semiotic-content-address-system"
 // Source-derived from Guix packageReceivingEnvironment and runTests. See the
 // extraction record. This internal module is not a package command interface.
 import {spawn,spawnSync} from 'node:child_process';
-import {createHash} from 'node:crypto';
+
 import {lstatSync,readFileSync,realpathSync} from 'node:fs';
 import {delimiter,dirname} from 'node:path';
 import {receivingProcessGroup} from './node-test-process-group.mjs';

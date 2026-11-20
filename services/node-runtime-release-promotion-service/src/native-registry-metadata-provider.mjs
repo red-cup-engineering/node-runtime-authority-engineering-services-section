@@ -10,7 +10,7 @@ import { createFetchFromRegistry } from '@pnpm/network.fetch';
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header';
 import { createNpmResolver, createNpmResolutionVerifier, loadMeta, decodeRegistry, parseBareSpecifier } from '@pnpm/resolving.npm-resolver';
 import * as constants from '@pnpm/constants';
-import { createHash } from 'node:crypto';
+
 import { lstat, readFile, readdir, realpath } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';

@@ -1,3 +1,4 @@
+import { sha256Hex } from "@red-cup-engineering/cryptographic-computer-data-engineering-services-section/integrity";
 import { readGitmodules } from "@red-cup-engineering/git-engine/gitmodules";
 // What a release of a commit is made of, read from git and never from bytes: the files the spec's
 // archive pathspecs select at the commit, each as the blob object git already content-addressed,
@@ -136,7 +137,7 @@ export function releaseIdentity({ repository, commit, archives, derived = [], mo
   const listing = createHash("sha256");
   for (const { mode, oid, path } of entries) if (!skipped.some(prefix => path === prefix || path.startsWith(prefix + "/"))) listing.update(`${mode} ${oid} ${path}\n`);
   const canonical = JSON.stringify({ identityVersion: IDENTITY_VERSION, archives, derived: declared, selection: listing.digest("hex") });
-  return { version: IDENTITY_VERSION, digest: createHash("sha256").update(canonical).digest("hex"), files: entries.length, entries };
+  return { version: IDENTITY_VERSION, digest: sha256Hex(canonical), files: entries.length, entries };
 }
 
 // `git archive <arguments> | tar -x` into `stage`, one pipeline, failing if either end does.

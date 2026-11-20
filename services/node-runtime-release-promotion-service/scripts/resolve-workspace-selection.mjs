@@ -1,9 +1,10 @@
 #!/usr/bin/env node
+import { sha256Hex } from "@red-cup-engineering/cryptographic-computer-data-engineering-services-section/integrity";
 import { readGitmodules } from "@red-cup-engineering/git-engine/gitmodules";
 import { readFileSync, realpathSync, existsSync, lstatSync } from "node:fs";
 import { resolve, relative, join, isAbsolute, matchesGlob } from "node:path";
 import { spawn, execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
+
 import { createRequire } from "node:module";
 import { dirname } from "node:path";
 import { gitHistoryPlan, readBatchBlobs } from "@red-cup-engineering/git-engine/git-command-codec";
@@ -29,7 +30,7 @@ const acquiring=planned||flags.sourceLock!==undefined||flags.importers.some(id=>
 let ids = [...new Set(['.',...(acquiring?(previous.roots??previous.importerIds):previous.importerIds), ...flags.importers])].sort();
 if (acquiring) {
   const commit=execGitSync(['-C',root,'rev-parse','HEAD'],{encoding:'utf8'}).trim();
-  if(commit!==previous.commit||createHash('sha256').update(readFileSync(join(root,'pnpm-lock.yaml'))).digest('hex')!==(previous.sourceLockSha256??previous.sourceHashes['pnpm-lock.yaml']))throw new Error('source resolution differs from its exact committed input');
+  if(commit!==previous.commit||sha256Hex(readFileSync(join(root,'pnpm-lock.yaml')))!==(previous.sourceLockSha256??previous.sourceHashes['pnpm-lock.yaml']))throw new Error('source resolution differs from its exact committed input');
   const locked=await readWorkspaceSelectionLock({workspace:root,tooling:previous.tooling});
   let locators=locked.importers;
   if(flags.sourceLock!==undefined){
@@ -212,5 +213,5 @@ const code = await new Promise((accept,reject) => {child.on("error",reject);chil
 if (code !== 0) throw new Error("pnpm could not resolve the selected composition: " + code);
 if(!readFileSync(producerFile).equals(producerBytes))throw new Error('source resolver changed during resolution');
 process.stdout.write(JSON.stringify({type:"NodeRuntimeWorkspaceSelectionResolution",version:1,workspace:root,importerIds:ids,acquiredImporterCount,lockOwner:"pnpm",applicationExecuted:false,
- inputCommit:previous.commit,inputSourceLockSha256:previous.sourceLockSha256??previous.sourceHashes['pnpm-lock.yaml'],resolvedSourceLockSha256:createHash('sha256').update(readFileSync(join(root,'pnpm-lock.yaml'))).digest('hex'),
- producer:{repository:'red-cup-engineering/computer-code-engineering-services-section',commit:producerCommit,path:producerPath,sha256:createHash('sha256').update(producerBytes).digest('hex')}})+"\n");
+ inputCommit:previous.commit,inputSourceLockSha256:previous.sourceLockSha256??previous.sourceHashes['pnpm-lock.yaml'],resolvedSourceLockSha256:sha256Hex(readFileSync(join(root,'pnpm-lock.yaml'))),
+ producer:{repository:'red-cup-engineering/computer-code-engineering-services-section',commit:producerCommit,path:producerPath,sha256:sha256Hex(producerBytes)}})+"\n");

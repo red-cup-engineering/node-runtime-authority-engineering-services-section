@@ -3,7 +3,7 @@ import { spawnGit } from "@red-cup-engineering/git-engine/git-process";
 import { readGitmodules } from "@red-cup-engineering/git-engine/gitmodules";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { createHash } from "node:crypto";
+
 import { chmod, copyFile, lstat, mkdir, readFile, readdir, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";

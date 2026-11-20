@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile,realpath,lstat,writeFile,mkdir,chmod} from 'node:fs/promises';
 import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
-import {createHash} from 'node:crypto';
+
 import {resolve,join,relative,isAbsolute,dirname} from 'node:path';
 import {readNodeWorkspace} from './read-workspace-source.mjs';
 

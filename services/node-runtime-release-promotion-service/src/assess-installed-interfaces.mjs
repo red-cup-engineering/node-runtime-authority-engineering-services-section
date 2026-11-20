@@ -1,7 +1,8 @@
+import { sha256Hex } from "@red-cup-engineering/cryptographic-computer-data-engineering-services-section/integrity";
 /** Read the complete selected installed module family without executing it. */
 import {existsSync,readFileSync,realpathSync,statSync} from 'node:fs';
 import {dirname,join,resolve} from 'node:path';
-import {createHash} from 'node:crypto';
+
 import {readImports} from '@red-cup-engineering/javascript-computer/imports';
 import {indexModuleCorpus} from '@red-cup-engineering/javascript-computer/module-corpus';
 import {javascriptInstalledResolver} from '@red-cup-engineering/javascript-module-closure-service';
@@ -32,7 +33,7 @@ export function assessInstalledInterfaces({entries,namespaces}={}) {
     const content=readFileSync(file,'utf8');let imports;
     try{imports=readImports(content);}catch(error){findings.push({kind:'unreadable-module',file,reason:error.message});continue;}
     files.set(file,{absolutePath:file,content,package:manifest.name,version:manifest.version,
-      sha256:createHash('sha256').update(content).digest('hex')});
+      sha256:sha256Hex(content)});
     for(const demand of imports){
       if(demand.specifier===undefined){dynamic++;continue;}
       let target;

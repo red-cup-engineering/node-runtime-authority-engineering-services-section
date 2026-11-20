@@ -2,7 +2,7 @@ import { sha256Hex } from "@red-cup-engineering/semiotic-content-address-system"
 import { execGitSync } from "@red-cup-engineering/git-engine/git-process";
 // Build-only orchestration. Admission happens before dynamic loading of the provider
 // whose literal PNPM imports remain visible to the ordinary external-import audit.
-import { createHash } from 'node:crypto';
+
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { access, lstat, mkdir, readFile, readdir, readlink, realpath, chmod, writeFile } from 'node:fs/promises';

@@ -1,5 +1,6 @@
+import { sha256Hex } from "@red-cup-engineering/cryptographic-computer-data-engineering-services-section/integrity";
 // Build-input contract only. Native PNPM owns version, registry and policy semantics.
-import { createHash } from 'node:crypto';
+
 import { delimiter, isAbsolute } from 'node:path';
 export const METADATA_OWNER = '@red-cup-engineering/node-runtime-release-promotion-service';
 export const METADATA_STAGE = 'build-input';
@@ -90,8 +91,7 @@ export function nonSecretPolicy(config, constants) {
       !url.search && !url.hash, 'metadata-credential-bearing-registry-unreceived');
     return url.href;
   };
-  const bytesHash = value => value == null ? null : createHash('sha256')
-    .update(JSON.stringify(Array.isArray(value) ? value : [value])).digest('hex');
+  const bytesHash = value => value == null ? null : sha256Hex(JSON.stringify(Array.isArray(value) ? value : [value]));
   const proxy = value => {
     if (value == null || value === false || value === '') return value ?? null;
     const url = new URL(value);

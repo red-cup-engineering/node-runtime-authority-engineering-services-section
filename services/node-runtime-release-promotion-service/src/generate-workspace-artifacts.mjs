@@ -1,6 +1,6 @@
 import { sha256Hex } from "@red-cup-engineering/semiotic-content-address-system";
 import assert from 'node:assert/strict';
-import {createHash} from 'node:crypto';
+
 import {readFile,realpath,lstat,mkdir,writeFile,chmod} from 'node:fs/promises';
 import {join,resolve,dirname,isAbsolute,relative,basename,sep} from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
