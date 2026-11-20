@@ -1,3 +1,4 @@
+import { makeTemporaryDirectory } from "@red-cup-engineering/computer-file-engineering-services-section/temporary-directory";
 import { readGitmodules } from "@red-cup-engineering/git-engine/gitmodules";
 /**
  * A workspace's lockfile is derived source: the package manager's resolution of the commit's
@@ -511,7 +512,9 @@ export async function qualifyWorkspaceLockfile({ repository, commit, derive, ins
  * `--lockfile-only`; a derivation resolves online so the store learns any new registry package.
  */
 async function overManifests({ repository, commit, command, home = process.env.HOME, environment = process.env }) {
-  const scratch = mkdtempSync(join(tmpdir(), "workspace-lockfile-"));
+  const temporaryDirectory = makeTemporaryDirectory("workspace-lockfile");
+  try {
+const scratch = temporaryDirectory.path;
   try {
     extractWorkspaceManifests(gitDirOf(repository), commit, scratch);
     const { code, output } = await invoke(commandArguments(command, home), scratch, environment);
@@ -519,6 +522,10 @@ async function overManifests({ repository, commit, command, home = process.env.H
     return { code, said: saidOf(output), lockfile };
   } finally {
     rmSync(scratch, { recursive: true, force: true });
+  }
+
+  } finally {
+    temporaryDirectory.remove();
   }
 }
 

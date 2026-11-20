@@ -46,7 +46,8 @@
     "esbuild": "0.28.1",
     "micromatch": "4.0.8",
     "typescript": "5.9.3",
-    "@red-cup-engineering/yaml-engine": "0.1.0"
+    "@red-cup-engineering/yaml-engine": "0.1.0",
+    "@red-cup-engineering/computer-file-engineering-services-section": "^0.8.16"
   },
   "engines": {
     "node": ">=22.18"
