@@ -1,3 +1,4 @@
+import { sha256Hex } from "@red-cup-engineering/semiotic-content-address-system";
 import { execGitSync } from "@red-cup-engineering/git-engine/git-process";
 // Build-only orchestration. Admission happens before dynamic loading of the provider
 // whose literal PNPM imports remain visible to the ordinary external-import audit.
@@ -16,8 +17,8 @@ const run = promisify(execFile);
 const ownerRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const canonical = value => JSON.stringify(value, (_, child) => child && !Array.isArray(child) && typeof child === 'object'
   ? Object.fromEntries(Object.entries(child).sort(([a], [b]) => a.localeCompare(b))) : child);
-const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
-const identityOf = value => sha256(canonical(value));
+
+const identityOf = value => sha256Hex(canonical(value));
 const inside = (root, path) => { const p = relative(root, path); return p === '' || (!isAbsolute(p) && p !== '..' && !p.startsWith('..' + sep)); };
 const moduleFiles = ['src/native-registry-metadata-contract.mjs', 'src/native-registry-metadata-provider.mjs',
   'src/native-registry-metadata-input.mjs', 'scripts/acquire-registry-metadata.mjs',
@@ -47,7 +48,7 @@ async function distributionDigest(root) {
       for (const name of (await readdir(path)).sort()) await walk(join(path, name));
     } else {
       requireInput(info.isFile(), 'metadata-cli-distribution-shape');
-      entries.push([name, info.mode & 0o111, sha256(await readFile(path))]);
+      entries.push([name, info.mode & 0o111, sha256Hex(await readFile(path))]);
     }
   }
   await walk(root);
@@ -76,10 +77,10 @@ async function cliIdentity(pnpm) {
   const nodeExecutable = await realpath(process.execPath);
   requireInput(nodeSlot && await realpath(nodeSlot) === nodeExecutable, 'metadata-cli-interpreter-unreceived');
   return { version: PNPM_VERSION, executable, package: supplier.root, ...await distributionDigest(supplier.root),
-    nodeVersion: process.version, nodeExecutable, nodeExecutableSha256: sha256(await readFile(nodeExecutable)),
+    nodeVersion: process.version, nodeExecutable, nodeExecutableSha256: sha256Hex(await readFile(nodeExecutable)),
     nodeInvocation: { execArgv: [...process.execArgv], pathSlot: nodeSlot,
       pathSlotLink: (await lstat(nodeSlot)).isSymbolicLink() ? await readlink(nodeSlot) : null,
-      interpreterLauncher: '/usr/bin/env', interpreterLauncherSha256: sha256(await readFile('/usr/bin/env')),
+      interpreterLauncher: '/usr/bin/env', interpreterLauncherSha256: sha256Hex(await readFile('/usr/bin/env')),
       unsupportedResolutionControls: 'refused; caller must enforce before process launch' } };
 }
 
@@ -160,7 +161,7 @@ export async function observeSupplierClosure(workspace, roots) {
             await content(join(path, name), inBin);
           }
         }
-      } else if (inBin) row.ignoredBytes.push([relative(root, path), state.mode & 0o111, sha256(await readFile(path))]);
+      } else if (inBin) row.ignoredBytes.push([relative(root, path), state.mode & 0o111, sha256Hex(await readFile(path))]);
     }
     await content(root);
     const names = Object.keys({ ...manifest.dependencies, ...manifest.optionalDependencies, ...manifest.peerDependencies }).sort();
@@ -329,7 +330,7 @@ export async function receiveNativeMetadataInput(options, { verifyOnly = false }
     const { identity, ...body } = received;
     assertRetainedNativeFiles(before, received.files);
     requireInput(identity === identityOf(body) &&
-      received.acquisitionSha256 === sha256(await readFile(join(output, 'acquisition.json'))), 'metadata-input-digest-mismatch');
+      received.acquisitionSha256 === sha256Hex(await readFile(join(output, 'acquisition.json'))), 'metadata-input-digest-mismatch');
   }
   const result = await admitted.provider.nativeMetadataPass({ ...admitted, cacheDir, offline: true });
   requireInput(identityOf(await admitted.provider.inspectNativeMirrors(cacheDir, admitted.records)) === identityOf(before),
@@ -337,7 +338,7 @@ export async function receiveNativeMetadataInput(options, { verifyOnly = false }
   await admitted.verifyUnchanged();
   if (!verifyOnly) {
     const body = { schema: METADATA_SCHEMA, state: 'received-material', bindingSha256: identityOf(admitted.binding),
-      acquisitionSha256: sha256(await readFile(join(output, 'acquisition.json'))), files: before, coverage: result,
+      acquisitionSha256: sha256Hex(await readFile(join(output, 'acquisition.json'))), files: before, coverage: result,
       receivedAt: new Date().toISOString(), scope: 'native-api-material; stock OS-network-denied deployment remains separate' };
     received = { ...body, identity: identityOf(body) };
     await writeExclusive(join(output, 'metadata-input.json'), received);

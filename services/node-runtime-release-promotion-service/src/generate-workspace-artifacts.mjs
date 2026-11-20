@@ -1,3 +1,4 @@
+import { sha256Hex } from "@red-cup-engineering/semiotic-content-address-system";
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {readFile,realpath,lstat,mkdir,writeFile,chmod} from 'node:fs/promises';
@@ -8,7 +9,7 @@ import {readNodeWorkspace} from './read-workspace-source.mjs';
 import {workspaceModuleGenerationContract,workspaceGenerationOrder} from './workspace-module-generation.mjs';
 import {assessSourceInterfaces} from './assess-source-interfaces.mjs';
 
-const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
+
 const literal=path=>typeof path==='string'&&path&&!isAbsolute(path)&&!/[\\\0]/u.test(path)&&path.split('/').every(part=>part&&part!=='.'&&part!=='..');
 
 /** Receive declared source-product modules at the existing Code writer.
@@ -78,10 +79,10 @@ export async function generateWorkspaceArtifacts(options){
       const held=await lstat(output).catch(error=>{if(error.code==='ENOENT')return null;throw error;});
       if(held&&!held.isFile())throw new Error('source-product output is not a regular file');
       await writeFile(output,product.bytes);await chmod(output,0o644);
-      files.push({path:product.path,bytes:product.bytes.length,sha256:sha(product.bytes),executable:false});
+      files.push({path:product.path,bytes:product.bytes.length,sha256:sha256Hex(product.bytes),executable:false});
     }
-    packages.push({name:manifest.name,version:manifest.version,importer,manifestSha256:sha(manifestBytes),
-      module:{path:contract.declaration.module,export:contract.export,sha256:sha(moduleBytes)},publicationInstant:now,
+    packages.push({name:manifest.name,version:manifest.version,importer,manifestSha256:sha256Hex(manifestBytes),
+      module:{path:contract.declaration.module,export:contract.export,sha256:sha256Hex(moduleBytes)},publicationInstant:now,
       inputs:[...inputs.values()].sort((a,b)=>a.path.localeCompare(b.path)),files:files.sort((a,b)=>a.path.localeCompare(b.path))});
   }
   const typescript=await typed.receipt();
@@ -90,8 +91,8 @@ export async function generateWorkspaceArtifacts(options){
   }
   await reader.verify();
   return {type:'NodeRuntimeWorkspaceEmission',version:1,
-    producer:{package:'@red-cup-engineering/node-runtime-release-promotion-service',path:'src/generate-workspace-artifacts.mjs',sha256:sha(await readFile(fileURLToPath(import.meta.url)))},
-    sourceCommit:source.commit,sourceLockSha256:sha(reader.bytes(join(workspace,'pnpm-lock.yaml'))),
+    producer:{package:'@red-cup-engineering/node-runtime-release-promotion-service',path:'src/generate-workspace-artifacts.mjs',sha256:sha256Hex(await readFile(fileURLToPath(import.meta.url)))},
+    sourceCommit:source.commit,sourceLockSha256:sha256Hex(reader.bytes(join(workspace,'pnpm-lock.yaml'))),
     sourceConfigurationUnchanged:true,applicationExecuted:false,
     importerIds:source.importerIds,...(source.filter===undefined?{}:{filter:source.filter}),
     generationOrder:order.map(({provider,requires})=>({producer:provider.id,requires})),typescript,packages};

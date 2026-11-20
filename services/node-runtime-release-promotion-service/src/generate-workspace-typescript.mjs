@@ -1,3 +1,4 @@
+import { sha256Hex } from "@red-cup-engineering/semiotic-content-address-system";
 import assert from 'node:assert/strict';
 import {readFile,realpath,lstat,writeFile,mkdir,chmod} from 'node:fs/promises';
 import {createRequire} from 'node:module';
@@ -6,7 +7,7 @@ import {createHash} from 'node:crypto';
 import {resolve,join,relative,isAbsolute,dirname} from 'node:path';
 import {readNodeWorkspace} from './read-workspace-source.mjs';
 
-const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
+
 const within=(root,file)=>{const offset=relative(root,file);return !isAbsolute(offset)&&offset!=='..'&&!offset.startsWith('../');};
 
 /** Read the configured TypeScript output mapping without emitting a product.
@@ -77,18 +78,18 @@ export async function prepareWorkspaceTypeScriptGeneration(source){
         await writeFile(output,bytes);
         const executable=(await Promise.all((sources??[]).map(source=>lstat(source.fileName)))).some(stat=>Boolean(stat.mode&0o111));
         await chmod(output,executable?0o755:0o644);
-        files.push({path:relative(root,output).split('\\').join('/'),bytes:bytes.length,sha256:sha(bytes),executable});
+        files.push({path:relative(root,output).split('\\').join('/'),bytes:bytes.length,sha256:sha256Hex(bytes),executable});
       })());
     });
     await Promise.all(pending);
     assert.equal(emitted.emitSkipped,false,'TypeScript did not emit its declared products');
     if(!files.length||new Set(files.map(file=>file.path)).size!==files.length)throw new Error('TypeScript emitted no products or conflicting output paths');
-    packages.push({name,version:provider.manifest.version,importer:provider.importer,manifestSha256:sha(provider.bytes),configuration:{path:configuration,sha256:sha(configBytes)},compiler:{name:compilerManifest.name,version:compilerManifest.version,manifestSha256:sha(compilerManifestBytes),entrySha256:sha(await readFile(compilerFile))},files:files.sort((a,b)=>a.path.localeCompare(b.path))});
+    packages.push({name,version:provider.manifest.version,importer:provider.importer,manifestSha256:sha256Hex(provider.bytes),configuration:{path:configuration,sha256:sha256Hex(configBytes)},compiler:{name:compilerManifest.name,version:compilerManifest.version,manifestSha256:sha256Hex(compilerManifestBytes),entrySha256:sha256Hex(await readFile(compilerFile))},files:files.sort((a,b)=>a.path.localeCompare(b.path))});
     active.delete(name);done.add(name);
   }
   return {providers,emit,receipt:async()=>{
     await reader.verify();
-    return {type:'NodeRuntimeTypeScriptEmission',version:1,producer:{package:'@red-cup-engineering/node-runtime-release-promotion-service',path:'src/generate-workspace-typescript.mjs',sha256:sha(await readFile(fileURLToPath(import.meta.url)))},sourceCommit:source.commit,sourceLockSha256:sha(reader.bytes(join(workspace,'pnpm-lock.yaml'))),sourceConfigurationUnchanged:true,applicationExecuted:false,importerIds:source.importerIds,...(source.filter===undefined?{}:{filter:source.filter}),packages};
+    return {type:'NodeRuntimeTypeScriptEmission',version:1,producer:{package:'@red-cup-engineering/node-runtime-release-promotion-service',path:'src/generate-workspace-typescript.mjs',sha256:sha256Hex(await readFile(fileURLToPath(import.meta.url)))},sourceCommit:source.commit,sourceLockSha256:sha256Hex(reader.bytes(join(workspace,'pnpm-lock.yaml'))),sourceConfigurationUnchanged:true,applicationExecuted:false,importerIds:source.importerIds,...(source.filter===undefined?{}:{filter:source.filter}),packages};
   }};
 }
 

@@ -1,3 +1,4 @@
+import { sha256Hex } from "@red-cup-engineering/semiotic-content-address-system";
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
@@ -5,7 +6,7 @@ import {existsSync,lstatSync,readFileSync,realpathSync} from 'node:fs';
 import {isAbsolute,join,relative,resolve,sep} from 'node:path';
 import { execGitSync } from '@red-cup-engineering/git-engine/git-process';
 
-const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
+
 const blob=bytes=>createHash('sha1').update('blob '+bytes.length+'\0').update(bytes).digest('hex');
 const contained=(root,file)=>{const path=relative(root,file);return !isAbsolute(path)&&path!=='..'&&!path.startsWith('..'+sep);};
 const git=(root,...args)=>execGitSync(['-C',root,...args],{encoding:'utf8',maxBuffer:32*1024*1024}).trim();
@@ -121,7 +122,7 @@ export async function workspaceSourceReader({workspace,commit,importerIds,recurs
     if(!fact||fact.kind!=='blob'||!['100644','100755'].includes(fact.mode))throw new TypeError('interface is not a committed regular source: '+file);
     const body=readFileSync(file);
     assert.equal(blob(body),fact.identity,'interface bytes differ from exact Git source: '+file);
-    sources.set(file,{path:relative(root,file).split(sep).join('/'),sourceRepository:fact.sourceRepository,sourceCommit:fact.sourceCommit,gitBlob:fact.identity,sha256:hash(body)});
+    sources.set(file,{path:relative(root,file).split(sep).join('/'),sourceRepository:fact.sourceRepository,sourceCommit:fact.sourceCommit,gitBlob:fact.identity,sha256:sha256Hex(body)});
     return body;
   }
   const source=file=>new TextDecoder('utf-8',{fatal:true}).decode(bytes(file));

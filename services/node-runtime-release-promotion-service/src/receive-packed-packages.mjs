@@ -1,10 +1,11 @@
+import { sha256Hex } from "@red-cup-engineering/semiotic-content-address-system";
 import assert from 'node:assert/strict';
 import {lstatSync,readFileSync,readdirSync,readlinkSync,realpathSync} from 'node:fs';
 import {join,relative,resolve} from 'node:path';
 import {readNodeWorkspace} from './read-workspace-source.mjs';
 import {comparePackedManifest,packedPath,readPackedWorkspacePackages} from './packed-workspace-packages.mjs';
 import {receivingFilePaths,receivingPackageNames,receivingRegularFile} from './receiving-declarations.mjs';
-import {currentReceivingNode,packageReceivingEnvironment,runReceivingTest,sha256} from './bounded-node-test.mjs';
+import { currentReceivingNode, packageReceivingEnvironment, runReceivingTest } from "./bounded-node-test.mjs";
 
 function selectedTree(runtime,directory){
   const entries=[];
@@ -14,7 +15,7 @@ function selectedTree(runtime,directory){
       if(name==='node_modules')continue;
       const file=join(current,name),stat=lstatSync(file),path=relative(directory,file);
       if(stat.isDirectory()){entries.push({path,kind:'directory'});visit(file);}
-      else if(stat.isFile())entries.push({path,kind:'file',executable:Boolean(stat.mode&0o111),sha256:sha256(readFileSync(file))});
+      else if(stat.isFile())entries.push({path,kind:'file',executable:Boolean(stat.mode&0o111),sha256:sha256Hex(readFileSync(file))});
       else if(stat.isSymbolicLink())entries.push({path,kind:'link',target:readlinkSync(file),resolved:packedPath(runtime,file)});
       else throw new TypeError('selected packed owner has unsupported file type: '+file);
     }
@@ -24,7 +25,7 @@ function selectedTree(runtime,directory){
 
 function packedIdentity(packed,names){
   return {runtime:packed.runtime,packages:packed.packages.map(item=>({directory:item.directory,
-    aliases:item.aliases,manifest:sha256(item.manifestBytes)})),
+    aliases:item.aliases,manifest:sha256Hex(item.manifestBytes)})),
     selected:packed.packages.filter(item=>names.includes(item.manifest.name)).map(item=>({directory:item.directory,tree:selectedTree(packed.runtime,item.directory)}))};
 }
 
@@ -65,7 +66,7 @@ export async function receivePackedPackages(options={}){
         const file=join(owner.directory,path),bytes=source.reader.bytes(file),packedFile=receivingRegularFile(actual.directory,path);
         assert.ok(bytes.equals(readFileSync(packedFile)),'packed receiving bytes differ from committed provider: '+name+':'+path);
         const fact=source.reader.object(file);
-        target.push({path,gitBlob:fact.identity,sourceCommit:fact.sourceCommit,sha256:sha256(bytes),...(target===item.tests?{status:'unexecuted',executed:false}:{})});
+        target.push({path,gitBlob:fact.identity,sourceCommit:fact.sourceCommit,sha256:sha256Hex(bytes),...(target===item.tests?{status:'unexecuted',executed:false}:{})});
       }
     }
     const identity=packedIdentity(packed,names);
@@ -78,7 +79,7 @@ export async function receivePackedPackages(options={}){
         assert.equal(realpathSync(resolve(runtime)),packed.runtime,'runtime location changed');
         assert.deepEqual(packedIdentity(readPackedWorkspacePackages(runtime),names),identity,'packed identity changed');
         for(const item of result.packages)for(const {path,sha256:expected} of [...item.tests,...item.fixtures])
-          assert.equal(sha256(readFileSync(receivingRegularFile(item.directory,path))),expected,'selected receiving file changed');
+          assert.equal(sha256Hex(readFileSync(receivingRegularFile(item.directory,path))),expected,'selected receiving file changed');
         assert.deepEqual(currentReceivingNode(),result.node,'invoking Node identity changed');
       }catch(error){failures.push('packed/tool: '+error.message);}
       if(failures.length)throw new Error(failures.join('\n'));

@@ -1,3 +1,4 @@
+import { sha256Hex } from "@red-cup-engineering/semiotic-content-address-system";
 import { spawnGit } from "@red-cup-engineering/git-engine/git-process";
 import { readGitmodules } from "@red-cup-engineering/git-engine/gitmodules";
 import assert from "node:assert/strict";
@@ -17,7 +18,7 @@ const policyNames = [
   "trustLockfile", "blockExoticSubdeps", "verifyStoreIntegrity", "strictStorePkgContentCheck",
   "strictSsl", "allowBuilds",
 ];
-const digest = (value) => createHash("sha256").update(value).digest("hex");
+
 const portable = (value) => value.split(sep).join("/");
 const json = (value) => JSON.stringify(value, null, 2) + "\n";
 const contained = (parent, child) => {
@@ -69,7 +70,7 @@ async function sourceBinModes(root, importerIds) {
       try { await regularSourceFile(root, path); }
       catch (error) { if (error.cause?.code === "ENOENT") continue; throw error; }
       const bytes = await readFile(file);
-      bins.set(file, { root, path, mode: (await stat(file)).mode & 0o777, hash: digest(bytes) });
+      bins.set(file, { root, path, mode: (await stat(file)).mode & 0o777, hash: sha256Hex(bytes) });
     }
   }
   if (sourceChanges.length) {
@@ -84,7 +85,7 @@ async function preserveSourceBinModes(bins) {
   for (const [file, original] of bins) {
     if (await realpath(original.root) !== original.root) throw new Error("source bin root is redirected");
     await regularSourceFile(original.root, original.path);
-    assert.equal(digest(await readFile(file)), original.hash, "source bin changed during installation: " + file);
+    assert.equal(sha256Hex(await readFile(file)), original.hash, "source bin changed during installation: " + file);
     const mode = (await stat(file)).mode & 0o777;
     if (mode !== original.mode) {
       // PNPM 11.19's bin linker sets exactly 0755, including non-execute bits.
@@ -132,7 +133,7 @@ export async function verifyWorkspaceSelection(receipt, { environment = process.
     assert.deepEqual(Object.keys(manager.files).sort(), ["bin/pnpm.mjs", "dist/pnpm.mjs", "package.json"]);
     for (const [path, hash] of Object.entries(manager.files)) {
       await regularSourceFile(manager.root, path);
-      assert.equal(digest(await readFile(join(manager.root, path))), hash, "selected package manager changed: " + path);
+      assert.equal(sha256Hex(await readFile(join(manager.root, path))), hash, "selected package manager changed: " + path);
     }
     assert.equal(receipt.executable, join(manager.root, "bin/pnpm.mjs"));
     assert.equal(receipt.pnpmVersion, manager.version);
@@ -155,13 +156,13 @@ export async function verifyWorkspaceSelection(receipt, { environment = process.
     "selected source revision changed");
   const sourceMounts = await receiveSelectedSources({ root, importerIds: receipt.importerIds, environment });
   assert.deepEqual(sourceMounts, receipt.sourceMounts, "selected source mounts differ from their installed receipt");
-  assert.equal(digest(await readFile(join(receipt.artifact, "pnpm-lock.yaml"))), receipt.scopedLockSha256,
+  assert.equal(sha256Hex(await readFile(join(receipt.artifact, "pnpm-lock.yaml"))), receipt.scopedLockSha256,
     "selected frozen lock changed");
   for (const [name, hash] of Object.entries(receipt.sourceHashes)) {
-    assert.equal(digest(await readFile(join(root, name))), hash, "source configuration changed: " + name);
+    assert.equal(sha256Hex(await readFile(join(root, name))), hash, "source configuration changed: " + name);
   }
   for (const [id, hash] of Object.entries(receipt.manifestHashes)) {
-    assert.equal(digest(await readFile(join(root, id, "package.json"))), hash, "selected manifest changed: " + id);
+    assert.equal(sha256Hex(await readFile(join(root, id, "package.json"))), hash, "selected manifest changed: " + id);
   }
   // A matching manifest does not receive changed non-bin source bodies. Read
   // tracked state at each selected repository, without refreshing its index.
@@ -298,7 +299,7 @@ export async function runWorkspaceSelection({ receipt, arguments: args, deployOu
       const file = join(output, path);
       const entry = await lstat(file).catch(error => { if (error.code === "ENOENT" && path === "pnpm-workspace.yaml") return null; throw error; });
       if (entry && !entry.isFile()) throw new Error("deploy metadata must be a regular nonredirected file: " + path);
-      files.push({ path, sha256: entry ? digest(await readFile(file)) : null });
+      files.push({ path, sha256: entry ? sha256Hex(await readFile(file)) : null });
     }
     const packed = JSON.parse(await readFile(join(output, "package.json"), "utf8"));
     for (const field of ["name", "version", "exports", "bin", "files"])
@@ -708,7 +709,7 @@ export async function installWorkspaceSelection({
   await mkdir(resolve(stateDirectory), { recursive: true });
   const state = await realpath(resolve(stateDirectory));
   if (contained(root, state)) throw new Error("generated installation state must be outside the source checkout");
-  const guard = join(state, ".install-" + digest(root).slice(0, 16));
+  const guard = join(state, ".install-" + sha256Hex(root).slice(0, 16));
   await mkdir(guard).catch((cause) => { throw new Error("another selected install holds " + guard, { cause }); });
   let receipt;
   let receiptPath;
@@ -731,7 +732,7 @@ export async function installWorkspaceSelection({
     const toolManifest = await readFile(join(toolchainSource, "manifest.json"));
     const toolLock = await readFile(join(toolchainSource, "pnpm-lock.yaml"));
     const toolWorkspace = json({ packages: [], ...policies });
-    const tooling = join(state, "tooling", digest(Buffer.concat([toolManifest, toolLock, Buffer.from(toolWorkspace)])));
+    const tooling = join(state, "tooling", sha256Hex(Buffer.concat([toolManifest, toolLock, Buffer.from(toolWorkspace)])));
     await mkdir(tooling, { recursive: true });
     await writeFile(join(tooling, "package.json"), toolManifest);
     await writeFile(join(tooling, "pnpm-lock.yaml"), toolLock);
@@ -748,7 +749,7 @@ export async function installWorkspaceSelection({
     const packageManager = { version: JSON.parse(toolManifest).dependencies.pnpm, root: managerRoot, files: {} };
     for (const path of ["package.json", "bin/pnpm.mjs", "dist/pnpm.mjs"]) {
       await regularSourceFile(managerRoot, path);
-      packageManager.files[path] = digest(await readFile(join(managerRoot, path)));
+      packageManager.files[path] = sha256Hex(await readFile(join(managerRoot, path)));
     }
     assert.equal(JSON.parse(await readFile(join(managerRoot, "package.json"), "utf8")).version, packageManager.version);
     pnpm = join(managerRoot, "bin/pnpm.mjs");
@@ -767,7 +768,7 @@ export async function installWorkspaceSelection({
         assert.equal((await git("rev-parse", "HEAD")).trim(), commit, "source revision changed during selection");
         for (const [name, bytes] of before) assert.deepEqual(await optionalBytes(join(root, name)), bytes, "source configuration changed: " + name);
         return { type: "NodeRuntimeLockedSourceSelection", version: 1, workspace: root, commit,
-          roots: requestedImporters, importerIds, tooling, executable: pnpm, pnpmVersion, bootstrap, packageManager, sourceLockSha256: digest(before.get("pnpm-lock.yaml")),
+          roots: requestedImporters, importerIds, tooling, executable: pnpm, pnpmVersion, bootstrap, packageManager, sourceLockSha256: sha256Hex(before.get("pnpm-lock.yaml")),
           sourceImporterCount: Object.keys(sourceLock.importers).length, sourceConfigurationUnchanged: true,
           elapsedMilliseconds: Date.now() - startedAt };
       }
@@ -823,10 +824,10 @@ export async function installWorkspaceSelection({
     const scopedProjects = JSON.parse(await runPnpm([...workspaceArgs, ...exactFilters, "list", "--recursive", "--depth=-1", "--json"]));
     assert.deepEqual(scopedProjects.map(({ path }) => portable(relative(root, path)) || ".").sort(), importerIds, "explicit pnpm workspace scope differs from selection");
     const manifestHashes = {};
-    for (const id of importerIds) manifestHashes[id] = digest(await readFile(join(root, id, "package.json")));
-    const sourceHashes = Object.fromEntries([...before].filter(([, bytes]) => bytes !== undefined).map(([name, bytes]) => [name, digest(bytes)]));
+    for (const id of importerIds) manifestHashes[id] = sha256Hex(await readFile(join(root, id, "package.json")));
+    const sourceHashes = Object.fromEntries([...before].filter(([, bytes]) => bytes !== undefined).map(([name, bytes]) => [name, sha256Hex(bytes)]));
     const identity = { workspace: root, commit, ...(selector === undefined ? { roots: requestedImporters } : { selector }), pnpmVersion, sourceHashes, manifestHashes };
-    const artifact = join(state, "selections", digest(json(identity)));
+    const artifact = join(state, "selections", sha256Hex(json(identity)));
     await mkdir(artifact, { recursive: true });
     const scopedLock = projectSelectedWorkspaceLock({ lockfile: sourceLock, importerIds, workspace: root, lockfileDirectory: artifact, filterLockfileByImporters });
     await writeWantedLockfile(artifact, scopedLock);
@@ -835,11 +836,11 @@ export async function installWorkspaceSelection({
     const command = [...storeArgs, "--lockfile-dir=" + artifact, ...workspaceArgs, ...(selector === undefined ? exactFilters : ["--filter", selector]), "install", "--frozen-lockfile", "--ignore-scripts"];
     receipt = {
       type: "NodeRuntimeWorkspaceSelectionInstallReceipt", version: 1, ...identity,
-      recordedAt: new Date().toISOString(), artifact, tooling, importerIds, sourceMounts, sourceAssessment: { path: sourceAssessmentPath, sha256: digest(Buffer.from(json(sourceAssessment))), interfaceAdmissionComplete: sourceAssessment.interfaceAdmissionComplete }, selectionElapsedMilliseconds: Date.now() - startedAt,
+      recordedAt: new Date().toISOString(), artifact, tooling, importerIds, sourceMounts, sourceAssessment: { path: sourceAssessmentPath, sha256: sha256Hex(Buffer.from(json(sourceAssessment))), interfaceAdmissionComplete: sourceAssessment.interfaceAdmissionComplete }, selectionElapsedMilliseconds: Date.now() - startedAt,
       sourceImporterCount: Object.keys(sourceLock.importers).length,
       selectedPackageSnapshots: Object.keys(scopedLock.packages ?? {}).length,
       sourcePackageSnapshots: Object.keys(sourceLock.packages ?? {}).length,
-      scopedLockSha256: digest(scopedBytes), toolchainLockSha256: digest(toolLock),
+      scopedLockSha256: sha256Hex(scopedBytes), toolchainLockSha256: sha256Hex(toolLock),
       executable: pnpm, command, bootstrap, packageManager, status: "prepared", scriptsIgnored: true,
     };
     receiptPath = join(artifact, "install-receipt.json");
@@ -854,7 +855,7 @@ export async function installWorkspaceSelection({
       receipt.status = "installed";
     }
     for (const [name, bytes] of before) assert.deepEqual(await optionalBytes(join(root, name)), bytes, "source configuration changed: " + name);
-    for (const [id, hash] of Object.entries(manifestHashes)) assert.equal(digest(await readFile(join(root, id, "package.json"))), hash, "source manifest changed: " + id);
+    for (const [id, hash] of Object.entries(manifestHashes)) assert.equal(sha256Hex(await readFile(join(root, id, "package.json"))), hash, "source manifest changed: " + id);
     assert.equal((await git("rev-parse", "HEAD")).trim(), commit, "source revision changed during installation");
     receipt.sourceConfigurationUnchanged = true;
     receipt.totalElapsedMilliseconds = Date.now() - startedAt;

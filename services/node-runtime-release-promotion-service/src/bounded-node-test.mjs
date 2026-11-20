@@ -1,3 +1,4 @@
+import { sha256Hex } from "@red-cup-engineering/semiotic-content-address-system";
 // Source-derived from Guix packageReceivingEnvironment and runTests. See the
 // extraction record. This internal module is not a package command interface.
 import {spawn,spawnSync} from 'node:child_process';
@@ -8,7 +9,7 @@ import {receivingProcessGroup} from './node-test-process-group.mjs';
 
 export const TEST_TIMEOUT_MS=180000;
 export const TEST_OUTPUT_BYTES=64*1024*1024;
-export const sha256=bytes=>createHash('sha256').update(bytes).digest('hex');
+
 
 export function packageReceivingEnvironment(node,parent=process.env){
   const environment={PATH:dirname(node)+delimiter+(parent.PATH??''),NODE_OPTIONS:'--max-old-space-size=384'};
@@ -23,7 +24,7 @@ export function currentReceivingNode(){
   const result=spawnSync(executable,['--version'],{encoding:'utf8',env:packageReceivingEnvironment(executable),timeout:10000,maxBuffer:1024*1024,killSignal:'SIGKILL'});
   if(result.error||result.status!==0||result.signal||result.stdout.trim()!==process.version)
     throw new Error('current Node executable version differs from invoking runtime');
-  return {executable,version:process.version,sha256:sha256(readFileSync(executable))};
+  return {executable,version:process.version,sha256:sha256Hex(readFileSync(executable))};
 }
 
 export function summarizeNodeTap(stdout,file){

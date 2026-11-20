@@ -1,3 +1,4 @@
+import { sha256Hex } from "@red-cup-engineering/semiotic-content-address-system";
 // Intentionally visible static external imports. This file has no package export or bin.
 // Its owning bootstrap admits installed artifacts before loading this module.
 import { getConfig, shouldPersistLockfile } from '@pnpm/config.reader';
@@ -53,8 +54,8 @@ export async function nativeConfig(workspace, { inventory = false, rootManifest 
   // and global cafile into ca. Hashes above bind those effective public bytes;
   // global cafile's exact file bytes are retained by digest as well. Never key bytes.
   identity.transportFiles = {};
-  if (result.config.cafile) identity.transportFiles.cafileSha256 = digest(await readFile(result.config.cafile));
-  if (process.env.NODE_EXTRA_CA_CERTS) identity.transportFiles.nodeExtraCaCertsSha256 = digest(await readFile(process.env.NODE_EXTRA_CA_CERTS));
+  if (result.config.cafile) identity.transportFiles.cafileSha256 = sha256Hex(await readFile(result.config.cafile));
+  if (process.env.NODE_EXTRA_CA_CERTS) identity.transportFiles.nodeExtraCaCertsSha256 = sha256Hex(await readFile(process.env.NODE_EXTRA_CA_CERTS));
   return { ...result, identity };
 }
 
@@ -206,7 +207,7 @@ export async function nativeMetadataPass({ workspace, cacheDir, config, records,
   return { registryRecords: records.registry.length, nonRegistryRecords: records.nonRegistry.length, ...(offline ? { networkAttempts } : {}) };
 }
 
-const digest = body => createHash('sha256').update(body).digest('hex');
+
 /** Discover native files rather than reimplementing PNPM package-name mirror encoding. */
 export async function inspectNativeMirrors(cacheDir, records) {
   const files = [], groups = new Map();
@@ -234,7 +235,7 @@ export async function inspectNativeMirrors(cacheDir, records) {
       requireInput(!group.mirrors[kind], 'metadata-duplicate-native-mirror');
       group.mirrors[kind] = new Set(Object.keys(meta.versions).filter(version => meta.versions[version] != null));
       groups.set(key, group);
-      files.push({ path: nativePath, kind, bytes: bytes.length, sha256: digest(bytes) });
+      files.push({ path: nativePath, kind, bytes: bytes.length, sha256: sha256Hex(bytes) });
     }
   }
   await visit(cacheDir);

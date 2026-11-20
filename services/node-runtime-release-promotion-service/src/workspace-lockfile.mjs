@@ -1,3 +1,4 @@
+import { sha256Hex } from "@red-cup-engineering/semiotic-content-address-system";
 import { makeTemporaryDirectory } from "@red-cup-engineering/computer-file-engineering-services-section/temporary-directory";
 import { readGitmodules } from "@red-cup-engineering/git-engine/gitmodules";
 /**
@@ -174,7 +175,7 @@ const gitDirOf = (repository) => execGitSync(["-C", repository, "--no-replace-ob
 // leads every run of this workspace.
 const saidOf = (output) => output.split("\n").filter((line) => line.trim() && !/cyclic workspace/iu.test(line)).slice(-24).join("\n");
 
-const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
+
 const within = (root, path) => {
   const rel = relative(root, path);
   return rel === "" || (!isAbsolute(rel) && rel !== ".." && !rel.startsWith(`..${sep}`));
@@ -224,7 +225,7 @@ function invocationIdentity(args, environment) {
   const executable = args[0].includes("/") ? resolve(args[0]) : (environment.PATH ?? "").split(":").map(path => join(path, args[0])).find(runnable);
   if (!executable || !runnable(executable)) throw Object.assign(new Error(`workspace tool is unavailable: ${args[0]}`), { interrupted: true });
   const entry = path => {
-    try { const actual = realpathSync(path); return { path: actual, sha256: hash(readFileSync(actual)) }; }
+    try { const actual = realpathSync(path); return { path: actual, sha256: sha256Hex(readFileSync(actual)) }; }
     catch (cause) { throw Object.assign(new Error(`workspace tool entry is unavailable: ${path}`, { cause }), { interrupted: true }); }
   };
   const tools = [entry(executable)];
@@ -287,7 +288,7 @@ async function invokeBoundedWorkspaceTool(args, cwd, environment, { artifact, ph
   const streamFiles = Object.fromEntries(["stdout", "stderr"].map(key => [key, openSync(join(attempt, key), "wx", 0o600)]));
   for (const fd of Object.values(streamFiles)) fsyncSync(fd);
   durableWorkspaceRecord(join(attempt, "start.json"), { version: 1, phase, at: new Date().toISOString(),
-    inputsSha256: hash(JSON.stringify(identity)), argvSha256: hash(JSON.stringify(args)), budget, cwd });
+    inputsSha256: sha256Hex(JSON.stringify(identity)), argvSha256: sha256Hex(JSON.stringify(args)), budget, cwd });
   return new Promise((accept, reject) => {
     let child, group, closure, timer, closeTimer, failure, cleanupError, finished = false, observedBytes = 0, retainedBytes = 0;
     const chunks = [], streamBytes = { stdout: 0, stderr: 0 }, hashes = { stdout: createHash("sha256"), stderr: createHash("sha256") };
@@ -444,7 +445,7 @@ export async function qualifyWorkspaceLockfile({ repository, commit, derive, ins
     if (within(plan.repository, state)) throw new Error("workspace qualification state must be outside source");
     mkdirSync(state, { recursive: true });
     if (realpathSync(state) !== state) throw new Error("workspace qualification state is redirected");
-    artifact = join(state, hash(JSON.stringify(identity)));
+    artifact = join(state, sha256Hex(JSON.stringify(identity)));
     mkdirSync(artifact, { recursive: true });
     if (realpathSync(artifact) !== artifact) throw new Error("workspace qualification artifact is redirected");
     lease = await qualificationLease(join(artifact, "qualification.lease"));
@@ -461,7 +462,7 @@ export async function qualifyWorkspaceLockfile({ repository, commit, derive, ins
       const record = JSON.parse(readFileSync(retained, "utf8"));
       if (JSON.stringify(record.inputs) !== JSON.stringify(identity) || typeof record.lockfile !== "string") throw new Error("retained workspace derivation inputs differ");
       lockfile = Buffer.from(record.lockfile, "base64");
-      if (hash(lockfile) !== record.sha256) throw new Error("retained workspace derivation bytes differ");
+      if (sha256Hex(lockfile) !== record.sha256) throw new Error("retained workspace derivation bytes differ");
       writeFileSync(join(scratch, LOCKFILE), lockfile);
       resumed = true;
     } else {
@@ -476,7 +477,7 @@ export async function qualifyWorkspaceLockfile({ repository, commit, derive, ins
       if (retained) {
         // One atomic record binds identity and bytes. An interrupted publication
         // cannot leave a new lock with an old receipt or a reusable partial pair.
-        writeFileSync(join(scratch, "retained-inputs"), JSON.stringify({ inputs: identity, sha256: hash(lockfile), lockfile: lockfile.toString("base64") }) + "\n", { flag: "wx" });
+        writeFileSync(join(scratch, "retained-inputs"), JSON.stringify({ inputs: identity, sha256: sha256Hex(lockfile), lockfile: lockfile.toString("base64") }) + "\n", { flag: "wx" });
         renameSync(join(scratch, "retained-inputs"), retained);
       }
     }

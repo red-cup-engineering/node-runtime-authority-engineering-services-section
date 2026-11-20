@@ -47,7 +47,8 @@
     "micromatch": "4.0.8",
     "typescript": "5.9.3",
     "@red-cup-engineering/yaml-engine": "0.1.0",
-    "@red-cup-engineering/computer-file-engineering-services-section": "^0.8.16"
+    "@red-cup-engineering/computer-file-engineering-services-section": "^0.8.16",
+    "@red-cup-engineering/semiotic-content-address-system": "^0.1.7 || 0.1.8-dev.0"
   },
   "engines": {
     "node": ">=22.18"
