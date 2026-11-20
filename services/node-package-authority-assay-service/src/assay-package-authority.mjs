@@ -39,7 +39,7 @@ function buildPolicyValues(source) {
   return values;
 }
 
-export async function checkNodePackageAuthority(workspaceRoot) {
+export async function assayNodePackageAuthority(workspaceRoot) {
   const root = resolve(workspaceRoot);
   let rootManifest = {};
   try { rootManifest = JSON.parse(await readFile(join(root, "package.json"), "utf8")); }

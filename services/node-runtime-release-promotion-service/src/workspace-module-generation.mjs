@@ -42,8 +42,8 @@ export function workspaceGenerationOrder(providers,assessment){
       if(visited.has(file))return;visited.add(file);
       const missing=assessment.missing.find(item=>item.file===file||item.path===file);
       if(missing)throw new TypeError('generation prerequisite source interface is absent: '+file+' '+missing.reason);
-      const rejection=assessment.unreceived.find(item=>item.file===file&&item.reason==='source-parser-refusal');
-      if(rejection)throw new TypeError('generation programme has an unresolved source interface: '+file+' '+rejection.reason);
+      const refusal=assessment.unreceived.find(item=>item.file===file&&item.reason==='source-parser-refusal');
+      if(refusal)throw new TypeError('generation programme has an unresolved source interface: '+file+' '+refusal.reason);
       for(const edge of edges.get(file)??[])if(edge.target?.file)visit(edge.target.file);
     }
     for(const input of provider.inputs)visit(input);

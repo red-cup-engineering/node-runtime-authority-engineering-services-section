@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, readlink, rename, stat, symlink, writeFile } from "node:fs/promises";
 import { basename, join, relative, resolve, sep } from "node:path";
-import { RELEASE_RECORD, derivedPaths, releaseDigest } from "./release-digest.mjs";
+import { RELEASE_RECEIPT, derivedPaths, releaseDigest } from "./release-digest.mjs";
 import { IDENTITY_VERSION } from "./release-source.mjs";
 
 const DIGEST = /^[0-9a-f]{64}$/u;
@@ -23,14 +23,14 @@ async function atomicRelativeLink(directory, name, target) {
   await rename(temporary, join(directory, name));
 }
 
-export async function promoteNodeRuntimeRelease({ releaseRoot, digest, pointerName = "current", receiptRoot: recordRoot, commit, derived }) {
-  if (!releaseRoot || !recordRoot) throw new Error("releaseRoot and receiptRoot are required");
+export async function promoteNodeRuntimeRelease({ releaseRoot, digest, pointerName = "current", receiptRoot, commit, derived }) {
+  if (!releaseRoot || !receiptRoot) throw new Error("releaseRoot and receiptRoot are required");
   if (!DIGEST.test(digest ?? "")) throw new Error("digest must be one lowercase SHA-256 hex value");
   if (!POINTER.test(pointerName)) throw new Error("pointerName must be a lowercase deployment name");
   const root = resolve(releaseRoot);
   const release = resolve(root, digest);
   if (!inside(root, release) || basename(release) !== digest || !(await exists(release))) throw new Error("release is absent or outside the admitted root");
-  const materialization = JSON.parse(await readFile(join(release, RELEASE_RECORD), "utf8"));
+  const materialization = JSON.parse(await readFile(join(release, RELEASE_RECEIPT), "utf8"));
   // A release named by its git identity is verified by its receipt: the name is the receipt's, the
   // identity version is one this promoter knows, and, when the caller says which commit it
   // materialized or which paths it derives, the receipt agrees. Its bytes are checked by the drift
@@ -60,7 +60,7 @@ export async function promoteNodeRuntimeRelease({ releaseRoot, digest, pointerNa
   if (fromTarget && fromTarget !== digest) await atomicRelativeLink(root, "previous", fromTarget);
   await atomicRelativeLink(root, pointerName, digest);
 
-  const record = {
+  const receipt = {
     type: "NodeRuntimeReleasePromotionReceipt",
     version: 1,
     pointer: join(root, pointerName),
@@ -72,9 +72,9 @@ export async function promoteNodeRuntimeRelease({ releaseRoot, digest, pointerNa
     changed: fromTarget !== digest,
     recordedAt: new Date().toISOString(),
   };
-  const records = resolve(recordRoot);
-  await mkdir(records, { recursive: true });
-  const recordPath = join(records, `${record.recordedAt.replaceAll(":", "-")}-${digest}.json`);
-  await writeFile(recordPath, `${JSON.stringify(record, null, 2)}\n`, { flag: "wx" });
-  return { ...record, receiptPath: recordPath };
+  const receipts = resolve(receiptRoot);
+  await mkdir(receipts, { recursive: true });
+  const receiptPath = join(receipts, `${receipt.recordedAt.replaceAll(":", "-")}-${digest}.json`);
+  await writeFile(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`, { flag: "wx" });
+  return { ...receipt, receiptPath };
 }

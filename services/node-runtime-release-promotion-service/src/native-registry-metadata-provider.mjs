@@ -13,7 +13,7 @@ import { createHash } from 'node:crypto';
 import { lstat, readFile, readdir, realpath } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
-import { assertNativeResolution, assertNonExecutingConfig, assertNoToolchainSwitch, MetadataInputRejection, nonSecretPolicy, PNPM_VERSION, requireInput } from './native-registry-metadata-contract.mjs';
+import { assertNativeResolution, assertNonExecutingConfig, assertNoToolchainSwitch, MetadataInputRefusal, nonSecretPolicy, PNPM_VERSION, requireInput } from './native-registry-metadata-contract.mjs';
 
 export { constants };
 /** Compare actual ESM import targets with the bootstrap's uncached slots. These
@@ -120,10 +120,10 @@ export async function receiveInstalledSupplierGraph(workspace, ownerProject, coh
     }
     return instance;
   }
-  for (const provider of cohort.suppliers) {
-    const reference = lock.importers[ownerProject]?.devDependencies?.[provider.name];
+  for (const supplier of cohort.suppliers) {
+    const reference = lock.importers[ownerProject]?.devDependencies?.[supplier.name];
     requireInput(typeof reference === 'string', 'metadata-supplier-importer-unreceived');
-    await visit(resolve(workspace, ownerProject), provider.name, reference);
+    await visit(resolve(workspace, ownerProject), supplier.name, reference);
   }
   return [...visited.values()].sort((a, b) => a.instance.localeCompare(b.instance));
 }
@@ -171,7 +171,7 @@ export async function nativeMetadataPass({ workspace, cacheDir, config, records,
   assertNonExecutingConfig(config);
   let networkAttempts = 0;
   const transport = transportOptions(config);
-  const fetch = offline ? async () => { networkAttempts++; throw new MetadataInputRejection('metadata-offline-network-attempt'); }
+  const fetch = offline ? async () => { networkAttempts++; throw new MetadataInputRefusal('metadata-offline-network-attempt'); }
     : createFetchFromRegistry(transport);
   const auth = createGetAuthHeaderByURI(config.configByUri);
   const options = { ...transport, ...policyOptions(config), cacheDir, storeDir: undefined,

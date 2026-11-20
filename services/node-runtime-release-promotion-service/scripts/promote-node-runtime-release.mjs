@@ -9,7 +9,7 @@ function option(name, fallback) {
   return process.argv[index + 1];
 }
 
-const record = await promoteNodeRuntimeRelease({
+const receipt = await promoteNodeRuntimeRelease({
   releaseRoot: option("--release-root"),
   digest: option("--digest"),
   pointerName: option("--pointer", "current"),
@@ -17,4 +17,4 @@ const record = await promoteNodeRuntimeRelease({
   commit: option("--commit"),
   derived: option("--derived") === undefined ? undefined : JSON.parse(option("--derived")),
 });
-process.stdout.write(`${JSON.stringify(record)}\n`);
+process.stdout.write(`${JSON.stringify(receipt)}\n`);

@@ -16,7 +16,7 @@ function option(name, fallback) {
 }
 
 const settle = option("--settle-seconds");
-const report = await reconcileNodeRelease({
+const readout = await reconcileNodeRelease({
   repository: option("--repository"),
   spec: option("--spec"),
   remote: option("--remote"),
@@ -24,4 +24,4 @@ const report = await reconcileNodeRelease({
   ...(settle === undefined ? {} : { settleSeconds: Number(settle) }),
   verifyDrift: process.argv.includes("--verify-drift"),
 });
-process.stdout.write(`${JSON.stringify(report)}\n`);
+process.stdout.write(`${JSON.stringify(readout)}\n`);

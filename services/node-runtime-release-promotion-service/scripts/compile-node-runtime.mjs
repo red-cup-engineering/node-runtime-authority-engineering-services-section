@@ -15,8 +15,8 @@ for (let index = 0; index < args.length; index += 2) {
   else runtime = resolve(args[index + 1]);
 }
 try {
-  const record = await compileNodeRuntime({ entries, workspace, pnpm, filter, runtime, preserveSymlinks });
-  process.stdout.write(JSON.stringify(record) + "\n");
+  const receipt = await compileNodeRuntime({ entries, workspace, pnpm, filter, runtime, preserveSymlinks });
+  process.stdout.write(JSON.stringify(receipt) + "\n");
 } catch (error) {
   if (error.receipt) process.stdout.write(JSON.stringify(error.receipt) + "\n");
   throw error;

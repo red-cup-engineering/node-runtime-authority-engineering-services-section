@@ -73,14 +73,14 @@ function workspacePatterns(gitDir, commit) {
   const subtreeExcludes = entries.filter((entry) => entry.negative && entry.directoryPattern.endsWith("/**")).map((entry) => entry.pattern.slice(1));
   const matches = (paths, patterns, options) => patterns.length > 0 && micromatch(paths, patterns, options).length > 0;
   const manifestPaths = (directory) => PACKAGE_MANIFESTS.map((name) => directory ? `${directory}/${name}` : name);
-  const validated = (directory) => matches(manifestPaths(directory), positive, { dot: false }) && !matches(manifestPaths(directory), negative, { dot: true });
+  const admitted = (directory) => matches(manifestPaths(directory), positive, { dot: false }) && !matches(manifestPaths(directory), negative, { dot: true });
   const canContain = (directory) => {
     if (matches(manifestPaths(directory), subtreeExcludes, { dot: true })) return false;
-    if (validated(directory)) return true;
+    if (admitted(directory)) return true;
     if (unbounded) return true;
     return roots.some((root) => root === directory || root.startsWith(`${directory}/`) || directory.startsWith(`${root}/`));
   };
-  return { positive, negative, admitted: validated, canContain };
+  return { positive, negative, admitted, canContain };
 }
 
 /** Read many tree objects in one Git process and decode their immediate entries. */
@@ -298,7 +298,7 @@ async function invokeBoundedWorkspaceTool(args, cwd, environment, { artifact, ph
   durableWorkspaceRecord(join(attempt, "start.json"), { version: 1, phase, at: new Date().toISOString(),
     inputsSha256: hash(JSON.stringify(identity)), argvSha256: hash(JSON.stringify(args)), budget, cwd });
   return new Promise((accept, reject) => {
-    let child, group, closure, timer, closeTimer, failure, cleanupError, finished = false, observedBytes = 0, keptBytes = 0;
+    let child, group, closure, timer, closeTimer, failure, cleanupError, finished = false, observedBytes = 0, retainedBytes = 0;
     const chunks = [], streamBytes = { stdout: 0, stderr: 0 }, hashes = { stdout: createHash("sha256"), stderr: createHash("sha256") };
     const fault = (code, message) => Object.assign(new Error(message), { code, interrupted: true });
     const cleanupFault = cause => Object.assign(cause, { code: "ECLEANUP", custodyUnknown: true, interrupted: true });
@@ -321,14 +321,14 @@ async function invokeBoundedWorkspaceTool(args, cwd, environment, { artifact, ph
     const term = () => cancel("SIGTERM"), interrupt = () => cancel("SIGINT");
     const collect = stream => bytes => {
       observedBytes += bytes.length;
-      const kept = bytes.subarray(0, Math.max(0, budget.maxOutputBytes - keptBytes));
+      const retained = bytes.subarray(0, Math.max(0, budget.maxOutputBytes - retainedBytes));
       try {
-        if (kept.length) {
+        if (retained.length) {
           // Private bounded bytes survive even SIGKILL of the helper. A start
           // without terminal evidence is interrupted/unknown, never accepted.
-          writeFileSync(streamFiles[stream], kept); fsyncSync(streamFiles[stream]);
-          hashes[stream].update(kept); chunks.push(kept);
-          streamBytes[stream] += kept.length; keptBytes += kept.length;
+          writeFileSync(streamFiles[stream], retained); fsyncSync(streamFiles[stream]);
+          hashes[stream].update(retained); chunks.push(retained);
+          streamBytes[stream] += retained.length; retainedBytes += retained.length;
         }
       } catch (cause) { failure ??= fault("EIO", "workspace progress custody failed"); kill(); }
       if (observedBytes > budget.maxOutputBytes) stop("ENOBUFS", "workspace tool exceeded caller output bound");
@@ -344,7 +344,7 @@ async function invokeBoundedWorkspaceTool(args, cwd, environment, { artifact, ph
       const terminal = { phase, at: new Date().toISOString(), code, signal,
         status: error?.code ?? (code === 0 && signal === null ? "completed" : "refused"),
         quiescence: cleanup ?? { status: child?.pid ? "unknown" : "not-started" },
-        observedBytes, retainedBytes: keptBytes, streams: Object.fromEntries(["stdout", "stderr"].map(key => [key, {
+        observedBytes, retainedBytes, streams: Object.fromEntries(["stdout", "stderr"].map(key => [key, {
           bytes: streamBytes[key], sha256: hashes[key].digest("hex") }])) };
       try {
         for (const fd of Object.values(streamFiles)) { fsyncSync(fd); closeSync(fd); }
@@ -389,7 +389,7 @@ function sourceInputsUnchanged(directory, originals, { frozen = false } = {}) {
 
 // The release owner already uses a kernel lease kept until its controller's stdin
 // closes. Reuse that lifetime here: SIGKILL releases it without a clock-based steal.
-async function validationLease(file) {
+async function qualificationLease(file) {
   if (existsSync(file) && !lstatSync(file).isFile()) throw new Error("qualification lease is not a regular file");
   const keeper = "process.stdout.write('locked\\n'); process.stdin.resume(); process.stdin.on('end', () => process.exit(0));";
   const child = spawn("flock", ["--exclusive", "--nonblock", file, process.execPath, "-e", keeper], { stdio: ["pipe", "pipe", "pipe"] });
@@ -427,7 +427,7 @@ async function validationLease(file) {
  * unbounded derivation cannot silently become a new bounded receipt. Caller registry, auth,
  * package-manager, age, trust and peer policy are unchanged.
  */
-export async function validateWorkspaceLockfile({ repository, commit, derive, install, stateDirectory, rederive = false, execution,
+export async function qualifyWorkspaceLockfile({ repository, commit, derive, install, stateDirectory, rederive = false, execution,
   home = process.env.HOME, environment = process.env }) {
   if (!derive) throw new TypeError("workspace derivation command is required");
   const budget = workspaceExecutionBudget(execution, stateDirectory);
@@ -456,18 +456,18 @@ export async function validateWorkspaceLockfile({ repository, commit, derive, in
     artifact = join(state, hash(JSON.stringify(identity)));
     mkdirSync(artifact, { recursive: true });
     if (realpathSync(artifact) !== artifact) throw new Error("workspace qualification artifact is redirected");
-    lease = await validationLease(join(artifact, "qualification.lease"));
+    lease = await qualificationLease(join(artifact, "qualification.lease"));
   }
   try {
     scratch = mkdtempSync(join(artifact ?? tmpdir(), "workspace-lockfile-"));
     extractWorkspaceManifests(plan.gitDir, plan.commit, scratch, { entries: plan.entries });
     const originals = new Map(plan.inputs.map(({ path }) => [path, readFileSync(join(scratch, path))]));
     const committed = originals.get(LOCKFILE);
-    const kept = artifact && join(artifact, "derived-lock.json");
+    const retained = artifact && join(artifact, "derived-lock.json");
     let resumed = false, said = "", lockfile;
-    if (!rederive && kept && existsSync(kept)) {
-      if (!lstatSync(kept).isFile()) throw new Error("retained workspace derivation is not a regular file");
-      const record = JSON.parse(readFileSync(kept, "utf8"));
+    if (!rederive && retained && existsSync(retained)) {
+      if (!lstatSync(retained).isFile()) throw new Error("retained workspace derivation is not a regular file");
+      const record = JSON.parse(readFileSync(retained, "utf8"));
       if (JSON.stringify(record.inputs) !== JSON.stringify(identity) || typeof record.lockfile !== "string") throw new Error("retained workspace derivation inputs differ");
       lockfile = Buffer.from(record.lockfile, "base64");
       if (hash(lockfile) !== record.sha256) throw new Error("retained workspace derivation bytes differ");
@@ -482,11 +482,11 @@ export async function validateWorkspaceLockfile({ repository, commit, derive, in
       lockfile = readFileSync(join(scratch, LOCKFILE));
       toolsUnchanged();
       lease?.assertHeld();
-      if (kept) {
+      if (retained) {
         // One atomic record binds identity and bytes. An interrupted publication
         // cannot leave a new lock with an old receipt or a reusable partial pair.
         writeFileSync(join(scratch, "retained-inputs"), JSON.stringify({ inputs: identity, sha256: hash(lockfile), lockfile: lockfile.toString("base64") }) + "\n", { flag: "wx" });
-        renameSync(join(scratch, "retained-inputs"), kept);
+        renameSync(join(scratch, "retained-inputs"), retained);
       }
     }
     // The resolver's additional manifests, config, hooks, caches and node_modules
@@ -541,6 +541,6 @@ export async function checkWorkspaceLockfile({ repository, commit, install, ...r
 
 /** The lockfile the commit's manifests derive, and whether it differs from the one committed. */
 export async function deriveWorkspaceLockfile({ repository, commit, derive, ...rest }) {
-  return validateWorkspaceLockfile({ repository, commit, derive, ...rest });
+  return qualifyWorkspaceLockfile({ repository, commit, derive, ...rest });
 }
 

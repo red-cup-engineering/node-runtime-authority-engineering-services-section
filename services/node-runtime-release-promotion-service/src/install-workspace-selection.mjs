@@ -714,7 +714,7 @@ export async function installWorkspaceSelection({
   const guard = join(state, ".install-" + digest(root).slice(0, 16));
   await mkdir(guard).catch((cause) => { throw new Error("another selected install holds " + guard, { cause }); });
   let receipt;
-  let recordPath;
+  let receiptPath;
   try {
     const runPnpm = (args, cwd = root, output) => execute(pnpm, args, { cwd, environment, onOutput: output });
     const bootstrapVersion = (await runPnpm(["--pm-on-fail=ignore", "--version"])).trim();
@@ -845,8 +845,8 @@ export async function installWorkspaceSelection({
       scopedLockSha256: digest(scopedBytes), toolchainLockSha256: digest(toolLock),
       executable: pnpm, command, bootstrap, packageManager, status: "prepared", scriptsIgnored: true,
     };
-    recordPath = join(artifact, "install-receipt.json");
-    await writeFile(recordPath, json(receipt));
+    receiptPath = join(artifact, "install-receipt.json");
+    await writeFile(receiptPath, json(receipt));
     if (!prepareOnly) {
       const started = Date.now();
       const bins = await sourceBinModes(root, importerIds);
@@ -861,10 +861,10 @@ export async function installWorkspaceSelection({
     assert.equal((await git("rev-parse", "HEAD")).trim(), commit, "source revision changed during installation");
     receipt.sourceConfigurationUnchanged = true;
     receipt.totalElapsedMilliseconds = Date.now() - startedAt;
-    await writeFile(recordPath, json(receipt));
-    return { ...receipt, receiptPath: recordPath };
+    await writeFile(receiptPath, json(receipt));
+    return { ...receipt, receiptPath };
   } catch (error) {
-    if (recordPath) await writeFile(recordPath, json({ ...receipt, status: "refused", error: error.message }));
+    if (receiptPath) await writeFile(receiptPath, json({ ...receipt, status: "refused", error: error.message }));
     throw error;
   } finally {
     await rm(guard, { recursive: true });

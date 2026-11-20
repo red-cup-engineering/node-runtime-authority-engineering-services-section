@@ -8,7 +8,7 @@ import { selectionEntries } from './release-source.mjs';
 
 const inside = (root, path) => { const p = relative(root, path); return p === '' || (!isAbsolute(p) && p !== '..' && !p.startsWith('..' + sep)); };
 const hash = (parts) => { const h = createHash('sha256'); for (const part of parts) { const b = Buffer.from(part); h.update(String(b.length) + ':'); h.update(b); } return h.digest('hex'); };
-const fingerprintContext = record => hash(['runtime-closure/v1', process.version, process.platform, process.arch, record.installKey ?? '']);
+const fingerprintContext = receipt => hash(['runtime-closure/v1', process.version, process.platform, process.arch, receipt.installKey ?? '']);
 const optional = async (action) => { try { return await action(); } catch (e) { if (e.code === 'ENOENT') return null; throw e; } };
 const child = (root, path) => { if (!path || isAbsolute(path) || !inside(root, resolve(root, path))) throw new Error('runtime path must be inside its release: ' + path); return resolve(root, path); };
 
@@ -27,10 +27,10 @@ export async function runtimeFingerprint(release, project, cache = new Map(), { 
   if (repository) {
     const key = 'source-selection:' + root;
     if (!cache.has(key)) {
-      const record = JSON.parse(await readFile(join(root, 'release-receipt.json'), 'utf8'));
-      if (record.identityVersion !== 1 || !record.source?.commit) throw new Error('runtime source must have a verified Git release identity');
-      if (record.artifactDigest !== basename(root)) throw new Error('runtime receipt must name its admitted release');
-      cache.set(key, { receipt: record, entries: null, derived: record.derived ?? [] });
+      const receipt = JSON.parse(await readFile(join(root, 'release-receipt.json'), 'utf8'));
+      if (receipt.identityVersion !== 1 || !receipt.source?.commit) throw new Error('runtime source must have a verified Git release identity');
+      if (receipt.artifactDigest !== basename(root)) throw new Error('runtime receipt must name its admitted release');
+      cache.set(key, { receipt, entries: null, derived: receipt.derived ?? [] });
     }
     source = cache.get(key);
     const recorded = source.receipt.runtimeClosures?.[project];
@@ -133,11 +133,11 @@ export async function prepareRuntimeBindings({ releaseRoot, release, runtimes = 
   // Admission and subsequent promotion share the same installed artifact. Record the
   // established closure in its existing materialization receipt, never in a side registry.
   if (repository && plans.length) {
-    const recordPath = join(release, 'release-receipt.json');
-    const record = JSON.parse(await readFile(recordPath, 'utf8'));
-    record.runtimeClosures = { ...record.runtimeClosures, ...Object.fromEntries(plans.map(plan => [plan.project, { ...plan.after, context: fingerprintContext(record) }])) };
-    await writeFile(recordPath + '.tmp', JSON.stringify(record, null, 2) + '\n', { mode: 0o444 });
-    await rename(recordPath + '.tmp', recordPath);
+    const receiptPath = join(release, 'release-receipt.json');
+    const receipt = JSON.parse(await readFile(receiptPath, 'utf8'));
+    receipt.runtimeClosures = { ...receipt.runtimeClosures, ...Object.fromEntries(plans.map(plan => [plan.project, { ...plan.after, context: fingerprintContext(receipt) }])) };
+    await writeFile(receiptPath + '.tmp', JSON.stringify(receipt, null, 2) + '\n', { mode: 0o444 });
+    await rename(receiptPath + '.tmp', receiptPath);
   }
   return plans;
 }

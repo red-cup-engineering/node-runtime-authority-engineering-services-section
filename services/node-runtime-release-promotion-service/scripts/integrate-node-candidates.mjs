@@ -151,21 +151,21 @@ export async function integrateNodeCandidates({ repository, specInCommit, batchS
   // The integration commit is named before it is admitted, so its objects stay reachable whatever the
   // outcome, and a reader can find what the queue is admitting.
   await git(repository, ["update-ref", "refs/integration/current", commit]);
-  const validatedRoot = resolve(queueRoot, "admitted");
+  const admittedRoot = resolve(queueRoot, "admitted");
   let published = false;
   let publishedAs = commit;
 
   try {
-    const record = await releaseGitCommit({
+    const receipt = await releaseGitCommit({
       specInCommit, repository, commitRef: commit, releaseBase: base, onStep,
       beforePromotion: async ({ digest }) => {
         // The admission record is what lets this push through the repository's pre-push gate: main
         // takes only commits the node admitted.
-        const validate = (validated, extra = {}) => {
-          mkdirSync(validatedRoot, { recursive: true });
-          writeFileSync(resolve(validatedRoot, `${validated}.json`), `${JSON.stringify({ type: "NodeIntegrationAdmission", version: 1, commit: validated, digest, base, candidates: composed.map(({ name, commit: candidate }) => ({ name, commit: candidate })), derived: integration.derived, ...extra, admittedAt: new Date().toISOString() }, null, 2)}\n`);
+        const admit = (admitted, extra = {}) => {
+          mkdirSync(admittedRoot, { recursive: true });
+          writeFileSync(resolve(admittedRoot, `${admitted}.json`), `${JSON.stringify({ type: "NodeIntegrationAdmission", version: 1, commit: admitted, digest, base, candidates: composed.map(({ name, commit: candidate }) => ({ name, commit: candidate })), derived: integration.derived, ...extra, admittedAt: new Date().toISOString() }, null, 2)}\n`);
         };
-        validate(commit);
+        admit(commit);
         let offered = commit;
         for (let attempt = 1; ; attempt += 1) {
           try {
@@ -179,7 +179,7 @@ export async function integrateNodeCandidates({ repository, specInCommit, batchS
             const absorbed = now === base || attempt > 3 ? { reason: now === base ? "main did not move" : "main kept moving" }
               : await absorbOutsideMain({ repository, base, now, commit }).catch((error) => ({ reason: error.message }));
             if (absorbed.commit) {
-              validate(absorbed.commit, { absorbs: { integration: commit, main: now, outside: absorbed.outside } });
+              admit(absorbed.commit, { absorbs: { integration: commit, main: now, outside: absorbed.outside } });
               offered = absorbed.commit;
               onStep(`main moved to ${now}; absorbing its ${absorbed.outside} outside path(s) as ${absorbed.commit}`);
               continue;
@@ -199,7 +199,7 @@ export async function integrateNodeCandidates({ repository, specInCommit, batchS
     await answer({ repository, queueRoot, candidates: composed, verdict: "integrated", main: { before: base, after: publishedAs }, integration: commit,
       batch: composed.map(({ name }) => name), onStep });
     setSuspectGroups(queueRoot, laterGroups);
-    return { base, outcome: "integrated", commit, receipt: record };
+    return { base, outcome: "integrated", commit, receipt };
   } catch (error) {
     if (error.deferred) { onStep(error.message); return { base, outcome: "deferred" }; }
     // A published batch is in main already; bisecting it would re-admit what main holds.

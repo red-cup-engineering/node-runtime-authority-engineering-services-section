@@ -1,6 +1,6 @@
 import { readFile, rename, rm, stat, utimes, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { RELEASE_RECORD, derivedPaths, releaseDigest } from "./release-digest.mjs";
+import { RELEASE_RECEIPT, derivedPaths, releaseDigest } from "./release-digest.mjs";
 
 // A staged tree becomes a release: it is digested, receipted with its source (for a repository,
 // the commit and pathspecs it was archived from), and moved to <releaseRoot>/<digest>, where the
@@ -20,7 +20,7 @@ export async function materializeNodeRuntimeRelease({ stagedRoot, releaseRoot, s
   if (identity !== undefined && (!Number.isInteger(identity.version) || !/^[0-9a-f]{64}$/u.test(identity.digest ?? ""))) throw new Error("identity is { version, digest } with a SHA-256 hex digest");
   const artifactDigest = identity?.digest ?? await releaseDigest(staged, { derived: declared });
   const release = join(resolve(releaseRoot), artifactDigest);
-  const record = {
+  const receipt = {
     type: "NodeRuntimeReleaseMaterializationReceipt",
     version: 1,
     artifactDigest,
@@ -32,24 +32,24 @@ export async function materializeNodeRuntimeRelease({ stagedRoot, releaseRoot, s
   const already = await stat(release).then(() => true, (error) => { if (error?.code === "ENOENT") return false; throw error; });
   let drifted = null;
   if (already && identity) {
-    const held = await readFile(join(release, RELEASE_RECORD), "utf8").then(JSON.parse, () => null);
+    const held = await readFile(join(release, RELEASE_RECEIPT), "utf8").then(JSON.parse, () => null);
     if (held?.artifactDigest === artifactDigest && held.identityVersion === identity.version) {
       await rm(staged, { recursive: true, force: true });
-      return { ...record, release, reused: true, drifted };
+      return { ...receipt, release, reused: true, drifted };
     }
-    drifted = join(resolve(releaseRoot), `.drifted-${artifactDigest}-${record.materializedAt.replaceAll(":", "-")}`);
+    drifted = join(resolve(releaseRoot), `.drifted-${artifactDigest}-${receipt.materializedAt.replaceAll(":", "-")}`);
     await rename(release, drifted);
     await utimes(drifted, new Date(), new Date());
   } else if (already) {
     if (await releaseDigest(release, { derived: declared }) === artifactDigest) {
       await rm(staged, { recursive: true, force: true });
-      return { ...record, release, reused: true, drifted };
+      return { ...receipt, release, reused: true, drifted };
     }
-    drifted = join(resolve(releaseRoot), `.drifted-${artifactDigest}-${record.materializedAt.replaceAll(":", "-")}`);
+    drifted = join(resolve(releaseRoot), `.drifted-${artifactDigest}-${receipt.materializedAt.replaceAll(":", "-")}`);
     await rename(release, drifted);
     await utimes(drifted, new Date(), new Date());
   }
-  await writeFile(join(staged, RELEASE_RECORD), `${JSON.stringify(record, null, 2)}\n`);
+  await writeFile(join(staged, RELEASE_RECEIPT), `${JSON.stringify(receipt, null, 2)}\n`);
   await rename(staged, release);
-  return { ...record, release, reused: false, drifted };
+  return { ...receipt, release, reused: false, drifted };
 }
