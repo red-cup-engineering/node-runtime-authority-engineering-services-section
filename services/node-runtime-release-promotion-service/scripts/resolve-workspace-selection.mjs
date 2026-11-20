@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { readGitmodules } from "@red-cup-engineering/git-engine/gitmodules";
 import { readFileSync, realpathSync, existsSync, lstatSync } from "node:fs";
 import { resolve, relative, join, isAbsolute, matchesGlob } from "node:path";
 import { spawn, execFileSync } from "node:child_process";
@@ -146,12 +147,8 @@ if (acquiring) {
           // without hydrating unrelated package or corpus bodies.
           for(const source of [{path:'.',revision:previous.commit},...mounts]){
             const repository=source.path==='.'?root:resolve(root,source.path);
-            const declaration=execGitSync(['-C',repository,'ls-tree',source.revision,'--','.gitmodules'],{encoding:'utf8'}).trim();
-            if(!declaration)continue;
-            const result=spawnGitSync(['-C',repository,'config','--blob',source.revision+':.gitmodules','--get-regexp','[.]path$'],{encoding:'utf8'});
-            if(result.error||![0,1].includes(result.status))throw result.error??new Error('current Gitlink metadata was not received');
-            for(const line of result.stdout.trim().split('\n').filter(Boolean)){
-              const local=line.replace(/^\S+\s+/u,''),path=source.path==='.'?local:source.path+'/'+local;
+            for(const {path:local} of readGitmodules(repository,{commit:source.revision})){
+              const path=source.path==='.'?local:source.path+'/'+local;
               if(workspaceOwner(path)&&!received.has(path))candidates.push(path);
             }
           }

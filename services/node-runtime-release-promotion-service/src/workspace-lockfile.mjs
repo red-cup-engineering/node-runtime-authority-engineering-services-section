@@ -1,3 +1,4 @@
+import { readGitmodules } from "@red-cup-engineering/git-engine/gitmodules";
 /**
  * A workspace's lockfile is derived source: the package manager's resolution of the commit's
  * workspace manifests, starting from the resolutions the commit's lockfile already holds. Nobody
@@ -31,18 +32,7 @@ const gitSync = (gitDir, ...args) => {
 
 /** The commit's submodule names by path, from its .gitmodules (a module's gitdir is named for it). */
 function submoduleNames(gitDir, commit) {
-  let config;
-  try { config = gitSync(gitDir, "show", `${commit}:.gitmodules`).toString(); }
-  catch { return new Map(); }
-  const names = new Map();
-  let name;
-  for (const line of config.split("\n")) {
-    const section = line.match(/^\s*\[submodule\s+"(.+)"\]/u);
-    if (section) name = section[1];
-    const path = line.match(/^\s*path\s*=\s*(.+?)\s*$/u);
-    if (path && name) names.set(path[1], name);
-  }
-  return names;
+  return new Map(readGitmodules(gitDir, { commit }).map(({ path, name }) => [path, name]));
 }
 
 /** Read and normalize pnpm 11.28.5's workspace package-pattern contract. */

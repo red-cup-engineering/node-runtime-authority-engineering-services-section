@@ -1,3 +1,5 @@
+import { spawnGit } from "@red-cup-engineering/git-engine/git-process";
+import { readGitmodules } from "@red-cup-engineering/git-engine/gitmodules";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -25,7 +27,8 @@ const contained = (parent, child) => {
 
 async function execute(command, args, { cwd, environment, onOutput } = {}) {
   return new Promise((accept, reject) => {
-    const child = spawn(command, args, { cwd, env: environment, stdio: ["ignore", "pipe", "pipe"] });
+    const options = { cwd, env: environment, stdio: ["ignore", "pipe", "pipe"] };
+    const child = command === "git" ? spawnGit(cwd ?? process.cwd(), args, options) : spawn(command, args, options);
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (chunk) => { stdout += chunk; onOutput?.(chunk.toString()); });
@@ -481,11 +484,7 @@ export async function receiveSelectedSources({ root, importerIds, environment, o
     if (!hasModules.trim()) return;
     await regularSourceFile(root, portable(relative(root, join(repository, ".gitmodules"))));
     assert.deepEqual(await readFile(join(repository, ".gitmodules")), Buffer.from(await git(repository, "show", "HEAD:.gitmodules")), "mount configuration differs from recorded source");
-    const lines = await git(repository, "config", "--blob", "HEAD:.gitmodules", "--get-regexp", "[.]path$").catch((error) => {
-      if (error.exitCode === 1) return ""; throw error;
-    });
-    for (const line of lines.trim().split("\n").filter(Boolean)) {
-      const path = line.replace(/^\S+\s+/u, "");
+    for (const { path, url } of readGitmodules(repository, { commit: "HEAD" })) {
       const wanted = paths.filter((id) => id === path || id.startsWith(path + "/"));
       if (!wanted.length) continue;
       const entry = (await git(repository, "ls-tree", "HEAD", "--", path)).trim();
@@ -504,8 +503,6 @@ export async function receiveSelectedSources({ root, importerIds, environment, o
         // checkout can hydrate unrelated corpus bodies; cone mode also includes
         // ordinary files in ancestor directories, so it is not sufficient here.
         const selected = wanted.map(id => id === path ? "." : id.slice(path.length + 1));
-        const key = line.slice(0, line.search(/\s/u)).replace(/[.]path$/u, ".url");
-        const url = (await git(repository, "config", "--blob", "HEAD:.gitmodules", "--get", key)).trim();
         if (!/^(?:https:\/\/github[.]com\/|git@github[.]com:|ssh:\/\/git@github[.]com\/)[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:[.]git)?$/u.test(url)) throw new Error("selected mount needs its committed GitHub source URL");
         // Sparse source can omit the mount's ordinary ancestors. Create only
         // those directories, checking each before descending; never hydrate

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { spawnGit } from "@red-cup-engineering/git-engine/git-process";
 // Release one commit of a repository to a host, as a spec kept with the instance describes:
 //   node release-git-commit.mjs <release.json> [--commit <ref>]
 //   node release-git-commit.mjs --spec-in-commit <path> --repository <checkout> [--commit <ref>]
@@ -82,7 +83,9 @@ const interruptionOf = (error) => {
 
 function commandOutput(file, arguments_, options = {}) {
   return new Promise((resolvePromise, reject) => {
-    const child = spawn(file, arguments_, { ...options, stdio: ["ignore", "pipe", "pipe"] });
+    const child = file === "git"
+      ? spawnGit(options.cwd ?? process.cwd(), arguments_, { ...options, stdio: ["ignore", "pipe", "pipe"] })
+      : spawn(file, arguments_, { ...options, stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (chunk) => { stdout += chunk; });
@@ -185,7 +188,7 @@ function unpackArchive(stage, archiveArguments) {
     // A remote stage is reached over the home connection's upstream, which every other user of the
     // network shares: the tar travels zstd-compressed (a release tree is about a third of its size).
     const unpack = commandProcess(`mkdir -p ${quote(stage)} && ${local ? "" : "zstd -d -q -c | "}tar -x -C ${quote(stage)}`, { input: true });
-    const archive = spawn("git", archiveArguments, {
+    const archive = spawnGit(repository, archiveArguments, {
       cwd: repository,
       stdio: ["ignore", "pipe", "inherit"],
     });
@@ -277,7 +280,7 @@ const composition = (atCommit = commit) => {
 // them is still an error.
 function reaches(gitDirectory, tree, pathspec, exclusions) {
   return new Promise((resolvePromise, reject) => {
-    const child = spawn("git", [...(gitDirectory ? ["--git-dir", gitDirectory] : []), "diff", "--quiet", "--no-renames", EMPTY_TREE, tree, "--", pathspec, ...exclusions], { cwd: repository, stdio: ["ignore", "ignore", "inherit"] });
+    const child = spawnGit(repository, [...(gitDirectory ? ["--git-dir", gitDirectory] : []), "diff", "--quiet", "--no-renames", EMPTY_TREE, tree, "--", pathspec, ...exclusions], { cwd: repository, stdio: ["ignore", "ignore", "inherit"] });
     child.on("error", reject);
     child.on("close", (code, signal) => (code === 0 || code === 1 ? resolvePromise(code === 1) : reject(exitError("git diff exited", code, signal))));
   });

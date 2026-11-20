@@ -1,3 +1,4 @@
+import { execGitSync } from "@red-cup-engineering/git-engine/git-process";
 // Build-only orchestration. Admission happens before dynamic loading of the provider
 // whose literal PNPM imports remain visible to the ordinary external-import audit.
 import { createHash } from 'node:crypto';
@@ -198,7 +199,7 @@ export async function admitNativeMetadataInput({ workspace, pnpm, stage }) {
   // Validate the exact selected CLI before any source inventory command executes it.
   const initialCli = await cliIdentity(pnpm);
   const root = await realpath(resolve(workspace));
-  const commit = (await run('git', ['-C', root, 'rev-parse', 'HEAD^{commit}'])).stdout.trim();
+  const commit = (await ({ stdout: execGitSync(['-C', root, 'rev-parse', 'HEAD^{commit}'], { encoding: "utf8" }) })).stdout.trim();
   const earlySource = await workspaceSourceReader({ workspace: root, commit, importerIds: ['.'], recursive: true });
   for (const file of ['package.json', 'pnpm-workspace.yaml', 'pnpm-lock.yaml']) earlySource.bytes(join(root, file));
   for (const file of ['.npmrc', '.pnpmfile.cjs', '.pnpmfile.mjs']) {

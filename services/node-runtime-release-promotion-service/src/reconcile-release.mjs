@@ -1,3 +1,4 @@
+import { spawnGitSync } from "@red-cup-engineering/git-engine/git-process";
 // A host keeps itself released: each pass compares the commit a branch names with the commit the
 // running release was built from, and when released bytes differ it starts one release of the
 // branch in a transient unit of its own, so the release outlives the service it restarts.
@@ -100,8 +101,8 @@ async function reconcile({
     throw new TypeError("node-release-reconcile: spec is a repository-relative release.json path");
   }
   const git = async (...arguments_) => {
-    const result = await run("git", arguments_, { cwd: repository });
-    if (result.code !== 0) throw new Error(`git ${arguments_.join(" ")}: exited ${result.code}: ${result.stderr.trim()}`);
+    const result = spawnGitSync(arguments_, { cwd: repository, encoding: "utf8" });
+    if (result.status !== 0) throw new Error(`git ${arguments_.join(" ")}: exited ${result.status}: ${result.stderr.trim()}`);
     return result.stdout.trim();
   };
   const checkedAt = now().toISOString();
@@ -174,15 +175,15 @@ async function reconcile({
   // Released bytes differ only where the spec's archives differ; anything else is data the host
   // does not run. A branch that is behind the running commit waits for the branch to catch up.
   let target = desired;
-  const known = running.commit !== null && (await run("git", ["cat-file", "-e", `${running.commit}^{commit}`], { cwd: repository })).code === 0;
+  const known = running.commit !== null && (spawnGitSync(["cat-file", "-e", `${running.commit}^{commit}`], { cwd: repository, encoding: "utf8" })).status === 0;
   let basis = running.commit === desired ? "same-commit" : null;
   if (basis === null && known) {
     const unchanged = [];
     for (const pathspecs of spec.archives) {
-      unchanged.push((await run("git", ["diff", "--quiet", running.commit, desired, "--", ...pathspecs], { cwd: repository })).code === 0);
+      unchanged.push((spawnGitSync(["diff", "--quiet", running.commit, desired, "--", ...pathspecs], { cwd: repository, encoding: "utf8" })).status === 0);
     }
     if (unchanged.every(Boolean)) basis = "no-released-change";
-    else if ((await run("git", ["merge-base", "--is-ancestor", desired, running.commit], { cwd: repository })).code === 0) basis = "running-ahead";
+    else if ((spawnGitSync(["merge-base", "--is-ancestor", desired, running.commit], { cwd: repository, encoding: "utf8" })).status === 0) basis = "running-ahead";
   }
   // The merge queue goes first: pending candidates, or a refused branch owed its one healing
   // integration. The integrator and release tool are the installed receiver's.

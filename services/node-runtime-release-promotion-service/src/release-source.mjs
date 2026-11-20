@@ -1,3 +1,4 @@
+import { readGitmodules } from "@red-cup-engineering/git-engine/gitmodules";
 // What a release of a commit is made of, read from git and never from bytes: the files the spec's
 // archive pathspecs select at the commit, each as the blob object git already content-addressed,
 // across the repositories the commit composes at its gitlinks. A release is named by a digest of
@@ -31,16 +32,7 @@ export function composedModules(repository, commit) {
     const match = /^160000 commit ([0-9a-f]{40})\t(.+)$/u.exec(entry);
     if (match) gitlinks.set(match[2], match[1]);
   }
-  const modules = new Map();
-  if (gitlinks.size > 0) {
-    const config = gitTextSync(repository, ["config", "--blob", `${commit}:.gitmodules`, "-z", "--get-regexp", "^submodule\\..*\\.(path|url|update)$"]);
-    for (const record of config.split("\0").filter(Boolean)) {
-      const [key, value] = record.split("\n");
-      const [, name, field] = /^submodule\.(.+)\.(path|url|update)$/u.exec(key);
-      modules.set(name, { ...modules.get(name), name, [field]: value });
-    }
-  }
-  const byPath = new Map([...modules.values()].map((module) => [module.path, module]));
+  const byPath = new Map(readGitmodules(repository, { commit }).map(module => [module.path, module]));
   const composed = [...gitlinks].map(([path, object]) => {
     const module = byPath.get(path);
     if (!module?.url) throw new Error(`gitlink ${path} has no submodule in ${commit}:.gitmodules`);
