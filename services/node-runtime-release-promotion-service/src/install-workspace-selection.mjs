@@ -635,15 +635,15 @@ export function projectSelectedWorkspaceLock({ lockfile, importerIds, workspace,
 export function deriveWorkspaceOnlyImporter({lockfile, importerId, manifest, providers}) {
   if (String(lockfile?.lockfileVersion) !== "9.0" || !lockfile.importers || !Array.isArray(providers))
     throw new TypeError("workspace-only demand requires a pnpm9 lock and source providers");
-  const canonical = path => typeof path === "string" && path && !isAbsolute(path) && !/[\\\0]/u.test(path)
+  const relativeWorkspacePath = path => typeof path === "string" && path && !isAbsolute(path) && !/[\\\0]/u.test(path)
     && (path === "." || path.split("/").every(part => part && part !== "." && part !== ".."));
-  if (!canonical(importerId) || typeof manifest?.name !== "string") throw new TypeError("canonical importer and manifest required");
+  if (!relativeWorkspacePath(importerId) || typeof manifest?.name !== "string") throw new TypeError("canonical importer and manifest required");
   const importer = {dependencies:undefined, devDependencies:undefined, optionalDependencies:undefined, specifiers:{}}, used = [];
   for (const field of fields) for (const [name, specifier] of Object.entries(manifest[field] ?? {})) {
     if (field !== "dependencies" && name in (manifest.dependencies ?? {})) continue;
     if (specifier !== "workspace:*") throw new TypeError("workspace-only derivation cannot resolve registry or version demand: " + name);
     const matches = providers.filter(provider => provider.manifest?.name === name);
-    if (matches.length !== 1 || !canonical(matches[0].path) || !lockfile.importers[matches[0].path])
+    if (matches.length !== 1 || !relativeWorkspacePath(matches[0].path) || !lockfile.importers[matches[0].path])
       throw new Error("workspace demand needs one already-locked source owner: " + name);
     const provider = matches[0], links = new Set();
     for (const [path, row] of Object.entries(lockfile.importers)) for (const entries of fields.map(key => row[key] ?? {})) {

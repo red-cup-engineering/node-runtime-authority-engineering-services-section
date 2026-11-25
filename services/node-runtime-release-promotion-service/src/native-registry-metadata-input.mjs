@@ -1,4 +1,4 @@
-import { sha256Hex } from "@red-cup-engineering/semiotic-content-address-system";
+import { sha256Hex, semanticHex } from "@red-cup-engineering/semiotic-content-address-system";
 import { execGitSync } from "@red-cup-engineering/git-engine/git-process";
 // Build-only orchestration. Admission happens before dynamic loading of the provider
 // whose literal PNPM imports remain visible to the ordinary external-import audit.
@@ -15,10 +15,6 @@ import { assertInterpreterSearchPath, assertNormalInvocation, assertOwnerStage, 
 
 const run = promisify(execFile);
 const ownerRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const canonical = value => JSON.stringify(value, (_, child) => child && !Array.isArray(child) && typeof child === 'object'
-  ? Object.fromEntries(Object.entries(child).sort(([a], [b]) => a.localeCompare(b))) : child);
-
-const identityOf = value => sha256Hex(canonical(value));
 const inside = (root, path) => { const p = relative(root, path); return p === '' || (!isAbsolute(p) && p !== '..' && !p.startsWith('..' + sep)); };
 const moduleFiles = ['src/native-registry-metadata-contract.mjs', 'src/native-registry-metadata-provider.mjs',
   'src/native-registry-metadata-input.mjs', 'scripts/acquire-registry-metadata.mjs',
@@ -52,7 +48,7 @@ async function distributionDigest(root) {
     }
   }
   await walk(root);
-  return { digest: identityOf(entries), files: entries.length };
+  return { digest: semanticHex(entries), files: entries.length };
 }
 
 async function cliIdentity(pnpm) {
@@ -209,7 +205,7 @@ export async function admitNativeMetadataInput({ workspace, pnpm, stage }) {
   }
   for (const file of moduleFiles) earlySource.bytes(join(ownerRoot, file));
   const suppliers = await supplierIdentity(root, cohort, pnpm);
-  requireInput(identityOf(initialCli) === identityOf(suppliers.cli), 'metadata-cli-changed');
+  requireInput(semanticHex(initialCli) === semanticHex(suppliers.cli), 'metadata-cli-changed');
   const provider = await import('./native-registry-metadata-provider.mjs');
   const esmEntries = provider.nativeSupplierImports();
   for (const instance of suppliers.instances) requireInput(
@@ -219,7 +215,7 @@ export async function admitNativeMetadataInput({ workspace, pnpm, stage }) {
   const rootManifest = JSON.parse(earlySource.bytes(join(root, 'package.json')));
   const configuration = await provider.nativeConfig(root, { inventory: true, rootManifest });
   await earlySource.verify();
-  requireInput(identityOf(await supplierIdentity(root, cohort, pnpm)) === identityOf(suppliers), 'metadata-supplier-changed');
+  requireInput(semanticHex(await supplierIdentity(root, cohort, pnpm)) === semanticHex(suppliers), 'metadata-supplier-changed');
   const source = await readNodeWorkspace({ workspace: root, pnpm });
   const project = relative(source.workspace, ownerRoot).split(sep).join('/');
   requireInput(source.importerIds.includes(project) && inside(source.workspace, ownerRoot), 'metadata-owner-outside-workspace');
@@ -242,14 +238,14 @@ export async function admitNativeMetadataInput({ workspace, pnpm, stage }) {
       files: [...source.reader.sources.values()].sort((a, b) => a.path.localeCompare(b.path)) },
     suppliers: { ...suppliers, installedGraph }, policy: configuration.identity,
     coverage: { total: records.total, registry: records.registry.length, nonRegistry: records.nonRegistry.length,
-      nativeSelectionsSha256: identityOf(records) },
+      nativeSelectionsSha256: semanticHex(records) },
   };
   async function verifyUnchanged() {
     await source.reader.verify();
-    requireInput(identityOf(await supplierIdentity(source.workspace, cohort, pnpm)) === identityOf(suppliers),
+    requireInput(semanticHex(await supplierIdentity(source.workspace, cohort, pnpm)) === semanticHex(suppliers),
       'metadata-supplier-changed');
     const current = await provider.nativeConfig(source.workspace, { inventory: true, rootManifest });
-    requireInput(identityOf(current.identity) === identityOf(configuration.identity), 'metadata-policy-changed');
+    requireInput(semanticHex(current.identity) === semanticHex(configuration.identity), 'metadata-policy-changed');
     await provider.nativeLock(source.workspace, current.config);
   }
   return { workspace: source.workspace, provider, config: configuration.config, records, binding, verifyUnchanged };
@@ -265,13 +261,13 @@ async function freezeTree(path) {
   else { requireInput(info.isFile(), 'metadata-snapshot-shape-refused'); await chmod(path, 0o400); }
 }
 export function assertAcquisitionBinding(acquisition, binding) {
-  requireInput(acquisition.schema === METADATA_SCHEMA && identityOf(acquisition.binding) === identityOf(binding),
+  requireInput(acquisition.schema === METADATA_SCHEMA && semanticHex(acquisition.binding) === semanticHex(binding),
     'metadata-input-binding-mismatch');
   requireInput(Number.isFinite(Date.parse(acquisition.startedAt)) && Number.isFinite(Date.parse(acquisition.finishedAt)) &&
     acquisition.startedAt <= acquisition.finishedAt, 'metadata-acquisition-interval-invalid');
 }
 export function assertRetainedNativeFiles(actual, expected) {
-  requireInput(identityOf(actual) === identityOf(expected), 'metadata-input-digest-mismatch');
+  requireInput(semanticHex(actual) === semanticHex(expected), 'metadata-input-digest-mismatch');
 }
 /** Refuse lexical aliases before effects. Every existing ancestor must be a
  * real directory, and the canonical output must be disjoint from source. This
@@ -318,7 +314,7 @@ export async function receiveNativeMetadataInput(options, { verifyOnly = false }
   assertAcquisitionBinding(acquisition, admitted.binding);
   const cacheDir = await admitMetadataOutput(admitted.workspace, join(output, 'cache'));
   const expectedNames = verifyOnly ? ['acquisition.json', 'cache', 'metadata-input.json'] : ['acquisition.json', 'cache'];
-  requireInput(identityOf((await readdir(output)).sort()) === identityOf(expectedNames.sort()), 'metadata-unexpected-input-entry');
+  requireInput(semanticHex((await readdir(output)).sort()) === semanticHex(expectedNames.sort()), 'metadata-unexpected-input-entry');
   const before = await admitted.provider.inspectNativeMirrors(cacheDir, admitted.records);
   let received;
   if (verifyOnly) {
@@ -329,18 +325,18 @@ export async function receiveNativeMetadataInput(options, { verifyOnly = false }
       received.identity === options.identity, 'metadata-expected-identity-mismatch');
     const { identity, ...body } = received;
     assertRetainedNativeFiles(before, received.files);
-    requireInput(identity === identityOf(body) &&
+    requireInput(identity === semanticHex(body) &&
       received.acquisitionSha256 === sha256Hex(await readFile(join(output, 'acquisition.json'))), 'metadata-input-digest-mismatch');
   }
   const result = await admitted.provider.nativeMetadataPass({ ...admitted, cacheDir, offline: true });
-  requireInput(identityOf(await admitted.provider.inspectNativeMirrors(cacheDir, admitted.records)) === identityOf(before),
+  requireInput(semanticHex(await admitted.provider.inspectNativeMirrors(cacheDir, admitted.records)) === semanticHex(before),
     'metadata-mirror-changed');
   await admitted.verifyUnchanged();
   if (!verifyOnly) {
-    const body = { schema: METADATA_SCHEMA, state: 'received-material', bindingSha256: identityOf(admitted.binding),
+    const body = { schema: METADATA_SCHEMA, state: 'received-material', bindingSha256: semanticHex(admitted.binding),
       acquisitionSha256: sha256Hex(await readFile(join(output, 'acquisition.json'))), files: before, coverage: result,
       receivedAt: new Date().toISOString(), scope: 'native-api-material; stock OS-network-denied deployment remains separate' };
-    received = { ...body, identity: identityOf(body) };
+    received = { ...body, identity: semanticHex(body) };
     await writeExclusive(join(output, 'metadata-input.json'), received);
     await freezeTree(output);
   }
