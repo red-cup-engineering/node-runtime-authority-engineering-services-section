@@ -1,5 +1,5 @@
 import { gitBlobIdOf } from "@red-cup-engineering/git-engine/git-object-id";
-import { sha256Hex, Sha256Stream } from "@red-cup-engineering/semiotic-content-address-system";
+import { semanticHex } from "@red-cup-engineering/semiotic-content-address-system";
 import { readGitmodules } from "@red-cup-engineering/git-engine/gitmodules";
 // What a release of a commit is made of, read from git and never from bytes: the files the spec's
 // archive pathspecs select at the commit, each as the blob object git already content-addressed,
@@ -134,10 +134,8 @@ export function releaseIdentity({ repository, commit, archives, derived = [], mo
   const declared = derivedPaths(derived);
   const entries = selectionEntries({ repository, commit, archives, modules });
   const skipped = declared;
-  const listing = new Sha256Stream();
-  for (const { mode, oid, path } of entries) if (!skipped.some(prefix => path === prefix || path.startsWith(prefix + "/"))) listing.update(`${mode} ${oid} ${path}\n`);
-  const canonical = JSON.stringify({ identityVersion: IDENTITY_VERSION, archives, derived: declared, selection: listing.digestHex() });
-  return { version: IDENTITY_VERSION, digest: sha256Hex(canonical), files: entries.length, entries };
+  const selection = entries.filter(({ path }) => !skipped.some(prefix => path === prefix || path.startsWith(prefix + "/"))).map(({ mode, oid, path }) => [mode, oid, path]);
+  return { version: IDENTITY_VERSION, digest: semanticHex({ identityVersion: IDENTITY_VERSION, archives, derived: declared, selection }), files: entries.length, entries };
 }
 
 // `git archive <arguments> | tar -x` into `stage`, one pipeline, failing if either end does.

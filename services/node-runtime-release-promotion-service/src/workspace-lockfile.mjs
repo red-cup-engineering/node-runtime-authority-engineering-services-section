@@ -1,4 +1,4 @@
-import { sha256Hex, Sha256Stream } from "@red-cup-engineering/semiotic-content-address-system";
+import { sha256Hex, Sha256Stream, semanticHex } from "@red-cup-engineering/semiotic-content-address-system";
 import { makeTemporaryDirectory } from "@red-cup-engineering/computer-file-engineering-services-section/temporary-directory";
 import { readGitmodules } from "@red-cup-engineering/git-engine/gitmodules";
 /**
@@ -287,7 +287,7 @@ async function invokeBoundedWorkspaceTool(args, cwd, environment, { artifact, ph
   const streamFiles = Object.fromEntries(["stdout", "stderr"].map(key => [key, openSync(join(attempt, key), "wx", 0o600)]));
   for (const fd of Object.values(streamFiles)) fsyncSync(fd);
   durableWorkspaceRecord(join(attempt, "start.json"), { version: 1, phase, at: new Date().toISOString(),
-    inputsSha256: sha256Hex(JSON.stringify(identity)), argvSha256: sha256Hex(JSON.stringify(args)), budget, cwd });
+    inputsSha256: semanticHex(identity), argvSha256: semanticHex(args), budget, cwd });
   return new Promise((accept, reject) => {
     let child, group, closure, timer, closeTimer, failure, cleanupError, finished = false, observedBytes = 0, retainedBytes = 0;
     const chunks = [], streamBytes = { stdout: 0, stderr: 0 }, hashes = { stdout: new Sha256Stream(), stderr: new Sha256Stream() };
@@ -444,7 +444,7 @@ export async function qualifyWorkspaceLockfile({ repository, commit, derive, ins
     if (within(plan.repository, state)) throw new Error("workspace qualification state must be outside source");
     mkdirSync(state, { recursive: true });
     if (realpathSync(state) !== state) throw new Error("workspace qualification state is redirected");
-    artifact = join(state, sha256Hex(JSON.stringify(identity)));
+    artifact = join(state, semanticHex(identity));
     mkdirSync(artifact, { recursive: true });
     if (realpathSync(artifact) !== artifact) throw new Error("workspace qualification artifact is redirected");
     lease = await qualificationLease(join(artifact, "qualification.lease"));

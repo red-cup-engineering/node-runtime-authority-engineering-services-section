@@ -11,7 +11,7 @@
  * so they stay valid at the new location. The clone is cut into jobs by directory and run in
  * parallel, because the work is the kernel's linking of ~100k inodes, not anything a job reads.
  */
-import { Sha256Stream } from "@red-cup-engineering/semiotic-content-address-system";
+import { semanticHex } from "@red-cup-engineering/semiotic-content-address-system";
 import { execFile } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
@@ -37,10 +37,7 @@ export function installKeyOf({ gitDir, commit, pnpmVersion, nodeVersion, platfor
   if (!pnpmVersion || !nodeVersion) throw new Error("an install key names the pnpm and node versions");
   const entries = workspaceManifestEntries(gitDir, commit, { rootFiles: KEY_ROOT_FILES })
     .map(({ path, object }) => `${path}\0${object}`).sort();
-  const hash = new Sha256Stream();
-  hash.update(`install-key\0${INSTALL_KEY_VERSION}\0pnpm ${pnpmVersion}\0node ${nodeVersion}\0${platform}-${arch}\0\0`);
-  for (const entry of entries) hash.update(`${entry}\n`);
-  return hash.digestHex();
+  return semanticHex({ kind: "install-key", version: INSTALL_KEY_VERSION, pnpm: pnpmVersion, node: nodeVersion, platform, arch, entries });
 }
 
 /** `reflink` when the filesystem clones file contents, else `hardlink`. */

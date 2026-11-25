@@ -1,6 +1,6 @@
 // Build-input contract only. Native PNPM owns version, registry and policy semantics.
 
-import { sha256Hex } from "@red-cup-engineering/semiotic-content-address-system";
+import { sha256Hex, semanticHex } from "@red-cup-engineering/semiotic-content-address-system";
 import { delimiter, isAbsolute } from 'node:path';
 export const METADATA_OWNER = '@red-cup-engineering/node-runtime-release-promotion-service';
 export const METADATA_STAGE = 'build-input';
@@ -91,7 +91,7 @@ export function nonSecretPolicy(config, constants) {
       !url.search && !url.hash, 'metadata-credential-bearing-registry-unreceived');
     return url.href;
   };
-  const bytesHash = value => value == null ? null : sha256Hex(JSON.stringify(Array.isArray(value) ? value : [value]));
+  const bytesHash = value => value == null ? null : semanticHex(Array.isArray(value) ? value : [value]);
   const proxy = value => {
     if (value == null || value === false || value === '') return value ?? null;
     const url = new URL(value);

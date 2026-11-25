@@ -1,4 +1,4 @@
-import { Sha256Stream } from "@red-cup-engineering/semiotic-content-address-system";
+import { Sha256Stream, semanticBytes } from "@red-cup-engineering/semiotic-content-address-system";
 import { readFile, readdir } from "node:fs/promises";
 import { join, relative } from "node:path";
 
@@ -27,7 +27,7 @@ export async function releaseDigest(root, { derived = [] } = {}) {
   const declared = derivedPaths(derived);
   const skipped = new Set(declared);
   const hash = new Sha256Stream();
-  if (declared.length > 0) { hash.update(`derived\0${declared.join("\0")}`); hash.update("\0\0"); }
+  if (declared.length > 0) hash.update(semanticBytes({ derived: declared }));
   const files = [];
   async function visit(directory) {
     const entries = await readdir(directory, { withFileTypes: true });
