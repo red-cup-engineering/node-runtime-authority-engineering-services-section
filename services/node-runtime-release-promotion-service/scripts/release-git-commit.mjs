@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { protocolDigestHex } from "@red-cup-engineering/cryptographic-computer-data-engineering-services-section/hash";
 import { spawnGit } from "@red-cup-engineering/git-engine/git-process";
 // Release one commit of a repository to a host, as a spec kept with the instance describes:
 //   node release-git-commit.mjs <release.json> [--commit <ref>]
@@ -239,7 +240,7 @@ function runWithInput(command, input) {
 
 // Read back `entries` ({ mode, oid, path }) from `stage` on the host and compare each with its git
 // blob id and executable bit, as verifyStagedEntries does for a local stage.
-const VERIFY_ON_HOST = `const fs=require("fs"),p=require("path"),c=require("crypto");const s=process.argv[1];let w=[],n=0;for(const l of fs.readFileSync(0,"utf8").split("\\n")){if(!l)continue;n++;const e=JSON.parse(l),f=p.join(s,e.path);let y=null;try{const t=fs.lstatSync(f);const id=b=>c.createHash("sha1").update("blob "+b.length+"\\0").update(b).digest("hex");if(e.mode==="120000")y=!t.isSymbolicLink()?"not a link":id(Buffer.from(fs.readlinkSync(f)))!==e.oid?"link differs":null;else if(!t.isFile())y="not a file";else if(id(fs.readFileSync(f))!==e.oid)y="bytes differ";else if((t.mode&0o111?"100755":"100644")!==e.mode)y="mode differs"}catch(x){y=x.code==="ENOENT"?"missing":"unreadable"}if(y)w.push(e.path+": "+y)}if(w.length){console.error(w.length+" of "+n+" paths differ: "+w.slice(0,10).join("; "));process.exit(1)}console.log(n)`;
+const VERIFY_ON_HOST = `const fs=require("fs"),p=require("path"),c=require("crypto");const s=process.argv[1];let w=[],n=0;for(const l of fs.readFileSync(0,"utf8").split("\\n")){if(!l)continue;n++;const e=JSON.parse(l),f=p.join(s,e.path);let y=null;try{const t=fs.lstatSync(f);const id=b=>c.protocolDigestHex("sha1", "blob "+b.length+"\\0", b);if(e.mode==="120000")y=!t.isSymbolicLink()?"not a link":id(Buffer.from(fs.readlinkSync(f)))!==e.oid?"link differs":null;else if(!t.isFile())y="not a file";else if(id(fs.readFileSync(f))!==e.oid)y="bytes differ";else if((t.mode&0o111?"100755":"100644")!==e.mode)y="mode differs"}catch(x){y=x.code==="ENOENT"?"missing":"unreadable"}if(y)w.push(e.path+": "+y)}if(w.length){console.error(w.length+" of "+n+" paths differ: "+w.slice(0,10).join("; "));process.exit(1)}console.log(n)`;
 async function verifyOnHost(stage, entries) {
   if (entries.length === 0) return 0;
   return Number((await runWithInput(`node -e ${quote(VERIFY_ON_HOST)} ${quote(stage)}`, entries.map((entry) => JSON.stringify(entry)).join("\n") + "\n")).trim());

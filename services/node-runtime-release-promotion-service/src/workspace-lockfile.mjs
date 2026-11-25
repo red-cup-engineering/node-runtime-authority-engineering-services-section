@@ -1,4 +1,4 @@
-import { sha256Hex } from "@red-cup-engineering/semiotic-content-address-system";
+import { sha256Hex, Sha256Stream } from "@red-cup-engineering/semiotic-content-address-system";
 import { makeTemporaryDirectory } from "@red-cup-engineering/computer-file-engineering-services-section/temporary-directory";
 import { readGitmodules } from "@red-cup-engineering/git-engine/gitmodules";
 /**
@@ -13,7 +13,6 @@ import { readGitmodules } from "@red-cup-engineering/git-engine/gitmodules";
  * scratch directory, and the package manager reads only them and the lockfile there.
  */
 import { spawn } from "node:child_process";
-import { createHash } from "node:crypto";
 import micromatch from "micromatch";
 import { parse as parseYaml } from "@red-cup-engineering/yaml-engine/syntax";
 import { takeBatchRecord } from "@red-cup-engineering/git-engine/git-command-codec";
@@ -291,7 +290,7 @@ async function invokeBoundedWorkspaceTool(args, cwd, environment, { artifact, ph
     inputsSha256: sha256Hex(JSON.stringify(identity)), argvSha256: sha256Hex(JSON.stringify(args)), budget, cwd });
   return new Promise((accept, reject) => {
     let child, group, closure, timer, closeTimer, failure, cleanupError, finished = false, observedBytes = 0, retainedBytes = 0;
-    const chunks = [], streamBytes = { stdout: 0, stderr: 0 }, hashes = { stdout: createHash("sha256"), stderr: createHash("sha256") };
+    const chunks = [], streamBytes = { stdout: 0, stderr: 0 }, hashes = { stdout: new Sha256Stream(), stderr: new Sha256Stream() };
     const fault = (code, message) => Object.assign(new Error(message), { code, interrupted: true });
     const cleanupFault = cause => Object.assign(cause, { code: "ECLEANUP", custodyUnknown: true, interrupted: true });
     const kill = () => {
@@ -337,7 +336,7 @@ async function invokeBoundedWorkspaceTool(args, cwd, environment, { artifact, ph
         status: error?.code ?? (code === 0 && signal === null ? "completed" : "refused"),
         quiescence: cleanup ?? { status: child?.pid ? "unknown" : "not-started" },
         observedBytes, retainedBytes, streams: Object.fromEntries(["stdout", "stderr"].map(key => [key, {
-          bytes: streamBytes[key], sha256: hashes[key].digest("hex") }])) };
+          bytes: streamBytes[key], sha256: hashes[key].digestHex() }])) };
       try {
         for (const fd of Object.values(streamFiles)) { fsyncSync(fd); closeSync(fd); }
         durableWorkspaceRecord(join(attempt, "terminal.json"), terminal);

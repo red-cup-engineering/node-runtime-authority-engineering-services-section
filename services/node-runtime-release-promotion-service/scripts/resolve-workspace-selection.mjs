@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { sha256Hex } from "@red-cup-engineering/cryptographic-computer-data-engineering-services-section/integrity";
+import { sha256Hex } from "@red-cup-engineering/semiotic-content-address-system";
 import { readGitmodules } from "@red-cup-engineering/git-engine/gitmodules";
 import { readFileSync, realpathSync, existsSync, lstatSync } from "node:fs";
 import { resolve, relative, join, isAbsolute, matchesGlob } from "node:path";

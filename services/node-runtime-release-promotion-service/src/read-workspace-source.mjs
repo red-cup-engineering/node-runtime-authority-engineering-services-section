@@ -1,13 +1,13 @@
+import { protocolDigestHex } from "@red-cup-engineering/cryptographic-computer-data-engineering-services-section/hash";
 import { sha256Hex } from "@red-cup-engineering/semiotic-content-address-system";
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
-import {createHash} from 'node:crypto';
 import {existsSync,lstatSync,readFileSync,realpathSync} from 'node:fs';
 import {isAbsolute,join,relative,resolve,sep} from 'node:path';
 import { execGitSync } from '@red-cup-engineering/git-engine/git-process';
 
 
-const blob=bytes=>createHash('sha1').update('blob '+bytes.length+'\0').update(bytes).digest('hex');
+const blob=bytes=>protocolDigestHex("sha1", 'blob '+bytes.length+'\0', bytes);
 const contained=(root,file)=>{const path=relative(root,file);return !isAbsolute(path)&&path!=='..'&&!path.startsWith('..'+sep);};
 const git=(root,...args)=>execGitSync(['-C',root,...args],{encoding:'utf8',maxBuffer:32*1024*1024}).trim();
 

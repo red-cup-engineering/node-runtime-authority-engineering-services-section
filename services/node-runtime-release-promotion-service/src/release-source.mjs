@@ -1,4 +1,5 @@
-import { sha256Hex } from "@red-cup-engineering/cryptographic-computer-data-engineering-services-section/integrity";
+import { gitBlobIdOf } from "@red-cup-engineering/git-engine/git-object-id";
+import { sha256Hex, Sha256Stream } from "@red-cup-engineering/semiotic-content-address-system";
 import { readGitmodules } from "@red-cup-engineering/git-engine/gitmodules";
 // What a release of a commit is made of, read from git and never from bytes: the files the spec's
 // archive pathspecs select at the commit, each as the blob object git already content-addressed,
@@ -7,7 +8,6 @@ import { readGitmodules } from "@red-cup-engineering/git-engine/gitmodules";
 // reads every byte; and a release is staged from the one before it by applying the difference
 // between the two selections (stageFromPrevious) instead of archiving the whole tree again.
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { constants as fsConstants, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { gitSync, gitTextSync } from "@red-cup-engineering/git-engine/git-objects";
@@ -134,9 +134,9 @@ export function releaseIdentity({ repository, commit, archives, derived = [], mo
   const declared = derivedPaths(derived);
   const entries = selectionEntries({ repository, commit, archives, modules });
   const skipped = declared;
-  const listing = createHash("sha256");
+  const listing = new Sha256Stream();
   for (const { mode, oid, path } of entries) if (!skipped.some(prefix => path === prefix || path.startsWith(prefix + "/"))) listing.update(`${mode} ${oid} ${path}\n`);
-  const canonical = JSON.stringify({ identityVersion: IDENTITY_VERSION, archives, derived: declared, selection: listing.digest("hex") });
+  const canonical = JSON.stringify({ identityVersion: IDENTITY_VERSION, archives, derived: declared, selection: listing.digestHex() });
   return { version: IDENTITY_VERSION, digest: sha256Hex(canonical), files: entries.length, entries };
 }
 
@@ -172,7 +172,7 @@ export function archiveCommit({ repository, commit, archives, stage }) {
 }
 
 /** The git blob id of `bytes`: what a tracked file's identity is. */
-export const blobId = (bytes) => createHash("sha1").update(`blob ${bytes.length}\0`).update(bytes).digest("hex");
+export const blobId = (bytes) => gitBlobIdOf(bytes);
 
 /**
  * Refuses a staged tree whose bytes are not the ones its identity names. Every entry of `entries`

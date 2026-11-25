@@ -3,13 +3,13 @@
 // file the commit's selection lists must be there with the blob id (and executable bit) git recorded,
 // and nothing else may be there but what the install builds (node_modules, the derived paths, the
 // receipt). A release named by its byte digest is compared by digesting its bytes, as before.
-import { createHash } from "node:crypto";
+import { gitBlobIdOf } from "@red-cup-engineering/git-engine/git-object-id";
 import { lstat, readFile, readdir, readlink } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { RELEASE_RECEIPT, releaseDigest } from "./release-digest.mjs";
 import { selectionEntries } from "./release-source.mjs";
 
-const blobId = (bytes) => createHash("sha1").update(`blob ${bytes.length}\0`).update(bytes).digest("hex");
+const blobId = (bytes) => gitBlobIdOf(bytes);
 
 /** `{ ok, kind, drifted: [{ path, why }] }`; for a legacy release, `drifted` is empty and `ok` is the digest's. */
 export async function verifyReleaseDrift({ release, repository }) {

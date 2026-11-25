@@ -1,13 +1,14 @@
 // Independent processes receive immutable trees, not the platform's moving `current`.
 // The installed dependency graph is deliberately conservative: a package's entire
 // released contents participate, including assets and dynamically read files.
-import { createHash, randomUUID } from 'node:crypto';
+import { Sha256Stream } from "@red-cup-engineering/semiotic-content-address-system";
+import { randomUUID } from "node:crypto";
 import { lstat, mkdir, readFile, readdir, readlink, realpath, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { selectionEntries } from './release-source.mjs';
 
 const inside = (root, path) => { const p = relative(root, path); return p === '' || (!isAbsolute(p) && p !== '..' && !p.startsWith('..' + sep)); };
-const hash = (parts) => { const h = createHash('sha256'); for (const part of parts) { const b = Buffer.from(part); h.update(String(b.length) + ':'); h.update(b); } return h.digest('hex'); };
+const hash = (parts) => { const h = new Sha256Stream(); for (const part of parts) { const b = Buffer.from(part); h.update(String(b.length) + ':'); h.update(b); } return h.digestHex(); };
 const fingerprintContext = receipt => hash(['runtime-closure/v1', process.version, process.platform, process.arch, receipt.installKey ?? '']);
 const optional = async (action) => { try { return await action(); } catch (e) { if (e.code === 'ENOENT') return null; throw e; } };
 const child = (root, path) => { if (!path || isAbsolute(path) || !inside(root, resolve(root, path))) throw new Error('runtime path must be inside its release: ' + path); return resolve(root, path); };
